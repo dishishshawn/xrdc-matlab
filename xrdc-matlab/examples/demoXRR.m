@@ -22,21 +22,31 @@ pk = xrdc.peaks.findPeaks(subScan, ...
     'MinSeparation',  0.05);
 fprintf('Found %d Kiessig fringes between 0.5° and 3°.\n', numel(pk));
 
-if numel(pk) < 3
-    warning('Too few fringes — thickness estimate will be noisy.');
-end
-
 %% Thickness from fringe periodicity
-ttPk   = [pk.twoTheta];     % fringe 2θ in degrees (thicknessFromFringes wants 2θ)
-thick  = xrdc.lattice.thicknessFromFringes(ttPk(:), scan.lambda);
-t_nm   = thick.thicknessFitNm;
-fprintf('Film thickness  d = %.2f ± %.2f nm (fit of %d fringes, λ=%.4f Å)\n', ...
-    t_nm, thick.thicknessFitSeNm, numel(pk), scan.lambda);
+if numel(pk) < 2
+    warning('Too few fringes (need ≥2) — skipping thickness estimate.');
+    t_nm = NaN;
+    thick = struct();
+else
+    if numel(pk) < 3
+        warning('Only %d fringe(s) — thickness estimate will be noisy.', numel(pk));
+    end
+    ttPk   = [pk.twoTheta];     % fringe 2θ in degrees (thicknessFromFringes wants 2θ)
+    thick  = xrdc.lattice.thicknessFromFringes(ttPk(:), scan.lambda);
+    t_nm   = thick.thicknessFitNm;
+    fprintf('Film thickness  d = %.2f ± %.2f nm (fit of %d fringes, λ=%.4f Å)\n', ...
+        t_nm, thick.thicknessFitSeNm, numel(pk), scan.lambda);
+end
 
 %% Plot
 scan.peaks = pk;
+if isnan(t_nm)
+    title_str = "XRR — insufficient fringe visibility";
+else
+    title_str = sprintf("XRR — d = %.1f nm", t_nm);
+end
 h = xrdc.plot.plotScan(scan, ...
-    'Title',     sprintf("XRR — d = %.1f nm", t_nm), ...
+    'Title',     title_str, ...
     'ShowPeaks', true);
 xlim(h.ax, [0, min(5, scan.twoTheta(end))]);
 
