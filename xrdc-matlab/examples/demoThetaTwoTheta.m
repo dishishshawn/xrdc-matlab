@@ -9,7 +9,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
 defaultFname = 'TR_S04_PTO_STO(100)_750c_200mT_1000sh_3hz_2theta omega_04072026.txt';
-if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+if ~exist('fname', 'var') || isempty(fname) ...
+        || ~isfile(fullfile(dataDir, fname)) ...
+        || ~contains(lower(string(fname)), ["2theta", "th2th", "2th"])
     fname = defaultFname;
 end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));

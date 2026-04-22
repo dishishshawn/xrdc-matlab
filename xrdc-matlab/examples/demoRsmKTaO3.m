@@ -15,7 +15,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport');
 defaultFname = 'HP PtO2 on TiO2 001 112 RSM_C_HP PtO2 on TiO2 001 112 RSM_C.xrdml';
-if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+if ~exist('fname', 'var') || isempty(fname) ...
+        || ~isfile(fullfile(dataDir, fname)) ...
+        || ~contains(lower(string(fname)), "rsm")
     fname = defaultFname;
 end
 

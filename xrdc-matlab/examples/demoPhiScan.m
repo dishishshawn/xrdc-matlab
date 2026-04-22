@@ -9,7 +9,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport');
 defaultFname = 'HP_TiO2 101 phi scan 3pixcel 1_8 slit.xrdml';
-if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+if ~exist('fname', 'var') || isempty(fname) ...
+        || ~isfile(fullfile(dataDir, fname)) ...
+        || ~contains(lower(string(fname)), "phi")
     fname = defaultFname;
 end
 scan    = xrdc.io.readScan(fullfile(dataDir, fname));

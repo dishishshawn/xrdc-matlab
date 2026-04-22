@@ -9,10 +9,11 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
 defaultFname = 'TR_S11_PTO_STO(100)_580c_150mT_20000sh_5hz_Film RC_04162026.txt';
-% If a `fname` variable is set in the workspace AND exists in dataDir, use it;
-% otherwise fall back to the default. Lets you do `fname = "myscan.txt"; demoRockingCurve`
-% without stale fnames from prior demos breaking this one.
-if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+% Use workspace fname only if it exists AND looks like a rocking curve. Keywords
+% cover Rigaku (_RC_, "RC") and PANalytical ("rocking") naming conventions.
+if ~exist('fname', 'var') || isempty(fname) ...
+        || ~isfile(fullfile(dataDir, fname)) ...
+        || ~contains(lower(string(fname)), ["rc", "rocking"])
     fname = defaultFname;
 end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));

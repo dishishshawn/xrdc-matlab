@@ -6,7 +6,12 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
 defaultFname = 'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_XRR_04162026.txt';
-if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+% Use workspace fname only if it exists AND looks like an XRR scan (by filename
+% keyword). Prevents stale fnames from previous demos being reused on the wrong
+% scan type.
+if ~exist('fname', 'var') || isempty(fname) ...
+        || ~isfile(fullfile(dataDir, fname)) ...
+        || ~contains(lower(string(fname)), "xrr")
     fname = defaultFname;
 end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));
