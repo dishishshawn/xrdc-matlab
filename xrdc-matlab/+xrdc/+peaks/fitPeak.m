@@ -121,11 +121,21 @@ function result = fitPeak(scan, window, options)
     if ~isfield(guess, 'eta'),       guess.eta       = 0.5;     end
 
     % ---- Dispatch ----
-    switch options.Method
-        case "lsqcurvefit"
+    if options.Method == "lsqcurvefit"
+        % Try lsqcurvefit; fall back to bruteforce if Optimization Toolbox missing
+        try
             result = fitLsq(xi, yi, guess, options, bga0, bgb0);
-        case "bruteforce"
-            result = fitBruteforce(xi, yi, guess, options, bga0, bgb0);
+        catch ME
+            if contains(ME.message, 'Optimization Toolbox')
+                warning('xrdc:peaks:noOptToolbox', ...
+                    'Optimization Toolbox not available. Falling back to bruteforce method.');
+                result = fitBruteforce(xi, yi, guess, options, bga0, bgb0);
+            else
+                rethrow(ME);
+            end
+        end
+    else
+        result = fitBruteforce(xi, yi, guess, options, bga0, bgb0);
     end
 
     result.dataX      = xi;
