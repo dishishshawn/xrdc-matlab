@@ -1,0 +1,16 @@
+{
+  "_comment": "X-ray line energies in eV, ported from XRAY.def (original XRDC Delphi source). NIST values are from the NIST X-ray Transition Energies Database. The 'default' Cu Kalpha1 value matches the historical value Dr. Heeg's program used.",
+  "lines": {
+    "Cu-Kalpha1-default":   8049.19,
+    "Cu-Kalpha1-NIST":      8047.8227,
+    "Cu-Kalpha2-NIST":      8027.8416,
+    "Cu-Kalpha":            8038.5,
+    "Cu-Kbeta1-NIST":       8905.413,
+    "W-Lalpha1-NIST":       8398.242,
+    "W-Lalpha2-NIST":       8335.34,
+    "W-Lbeta1-NIST":        9672.575,
+    "W-Lbeta2-NIST":        9964.133,
+    "W-Lgamma1-NIST":      11286.00
+  },
+  "default": "Cu-Kalpha1-default"
+}

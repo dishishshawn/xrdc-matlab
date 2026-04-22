@@ -1,0 +1,30 @@
+# Delphi reference material — not a deliverable, large binary artifacts
+XRD Converter Source/
+
+# macOS zip metadata
+__MACOSX/
+.DS_Store
+
+# Windows / editor clutter
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# MATLAB artifacts
+*.asv
+*.m~
+*.mex*
+*.mat
+slprj/
+
+# Demo outputs (exportgraphics targets)
+xrdc-matlab/*.png
+xrdc-matlab/*.pdf
+xrdc-matlab/*.eps
+xrdc-matlab/*.fig
+xrdc-matlab/examples/*.png
+xrdc-matlab/examples/*.pdf
+xrdc-matlab/examples/*.eps
+xrdc-matlab/examples/*.fig
