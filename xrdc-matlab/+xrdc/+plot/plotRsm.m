@@ -156,8 +156,9 @@ function h = plotRsm(scans, options)
         'TitleFontSize', options.TitleFontSize, ...
         'LogY',          false);
     set(ax, 'LineWidth', 1.5);
-    xlabel(ax, '{\itQ_x} (\AA^{-1})');
-    ylabel(ax, '{\itQ_z} (\AA^{-1})');
+    % Use Unicode Å since MATLAB's default TeX interpreter does not accept \AA.
+    xlabel(ax, '{\itQ}_x (Å^{-1})');
+    ylabel(ax, '{\itQ}_z (Å^{-1})');
 
     if ~isempty(options.AxesLim) && numel(options.AxesLim) == 4
         xlim(ax, options.AxesLim(1:2));
