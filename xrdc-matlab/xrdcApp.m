@@ -89,18 +89,14 @@ function onLoadScan(fig)
     st.rsmScans = [];
 
     try
-        isRsm = endsWith(lower(file), '.xrdml') && contains(lower(file), 'rsm');
-        if isRsm
+        fnLower = lower(string(file));
+        if endsWith(fnLower, '.xrdml') && contains(fnLower, 'rsm')
             st.rsmScans    = xrdc.rsm.loadAreaScan({fullPath});
             st.scan        = st.rsmScans(1);   % representative
             st.detectedType = "rsm";
         else
             st.scan        = xrdc.io.readScan(fullPath);
-            st.detectedType = lower(string(st.scan.scanType));
-            % XRR is stored as twoThetaOmega; disambiguate by filename
-            if st.detectedType == "twothetaomega" && contains(lower(file), "xrr")
-                st.detectedType = "xrr";
-            end
+            st.detectedType = detectScanType(st.scan, fnLower);
         end
     catch ME
         uialert(fig, sprintf('Failed to load the file:\n\n%s', ME.message), ...
@@ -108,8 +104,8 @@ function onLoadScan(fig)
         return
     end
 
-    st.infoLbl.Text = sprintf('  %s     |     %s     |     %d points', ...
-        file, upper(st.detectedType), numel(st.scan.twoTheta));
+    st.infoLbl.Text = sprintf('  %s     |     detected: %s     |     %d points', ...
+        file, upper(char(st.detectedType)), numel(st.scan.twoTheta));
     st.infoLbl.FontColor = [0 0 0];
     st.exportBtn.Enable = 'on';
     fig.UserData = st;
@@ -163,25 +159,26 @@ function buildAnalysisPanel(fig)
     g.Padding     = [6 6 6 6];
 
     row = 1;
-    switch st.detectedType
-        case "omega"
-            row = addEdit (g, row, 'Fit window (°)', '0.5',      @(v) onParamChange(fig, 'fitWindow', v));
-            row = addDrop (g, row, 'Shape',          {'lorentz','gauss','pseudoVoigt'}, 'lorentz', ...
-                                                                   @(v) onParamChange(fig, 'shape',     v));
-        case "twothetaomega"
-            row = addEdit (g, row, 'Min prom (%)',   '5',        @(v) onParamChange(fig, 'promPct',   v));
-        case "xrr"
-            row = addEdit (g, row, 'Fringe 2θ min',  '0.5',      @(v) onParamChange(fig, 'xrrMin',    v));
-            row = addEdit (g, row, 'Fringe 2θ max',  '3.0',      @(v) onParamChange(fig, 'xrrMax',    v));
-            row = addEdit (g, row, 'Min prom (%)',   '2',        @(v) onParamChange(fig, 'xrrProm',   v));
-        case "phi"
-            row = addEdit (g, row, 'Min prom (%)',   '10',       @(v) onParamChange(fig, 'promPct',   v));
-        case "rsm"
-            row = addDrop (g, row, 'Colormap',       {'turbo','parula','jet'}, 'turbo', ...
-                                                                   @(v) onParamChange(fig, 'colormap', v));
-            row = addEdit (g, row, 'Imin (counts)',  '1',        @(v) onParamChange(fig, 'imin',      v));
-            row = addEdit (g, row, 'Imax (counts)',  '1e5',      @(v) onParamChange(fig, 'imax',      v));
-            row = addEdit (g, row, 'Contours',       '40',       @(v) onParamChange(fig, 'nContours', v));
+    t = char(lower(string(st.detectedType)));
+    switch t
+        case 'omega'
+            row = addEdit (g, row, 'Fit window (°)', '0.5', @(v) onParamChange(fig, 'fitWindow', v));
+            row = addDrop (g, row, 'Shape', {'lorentz','gauss','pseudoVoigt'}, 'lorentz', ...
+                                                      @(v) onParamChange(fig, 'shape',     v));
+        case 'twothetaomega'
+            row = addEdit (g, row, 'Min prom (%)',   '5',   @(v) onParamChange(fig, 'promPct',   v));
+        case 'xrr'
+            row = addEdit (g, row, 'Fringe 2θ min',  '0.5', @(v) onParamChange(fig, 'xrrMin',    v));
+            row = addEdit (g, row, 'Fringe 2θ max',  '3.0', @(v) onParamChange(fig, 'xrrMax',    v));
+            row = addEdit (g, row, 'Min prom (%)',   '2',   @(v) onParamChange(fig, 'xrrProm',   v));
+        case 'phi'
+            row = addEdit (g, row, 'Min prom (%)',   '10',  @(v) onParamChange(fig, 'promPct',   v));
+        case 'rsm'
+            row = addDrop (g, row, 'Colormap', {'turbo','parula','jet'}, 'turbo', ...
+                                                      @(v) onParamChange(fig, 'colormap', v));
+            row = addEdit (g, row, 'Imin (counts)',  '1',   @(v) onParamChange(fig, 'imin',      v));
+            row = addEdit (g, row, 'Imax (counts)',  '1e5', @(v) onParamChange(fig, 'imax',      v));
+            row = addEdit (g, row, 'Contours',       '40',  @(v) onParamChange(fig, 'nContours', v));
     end
 
     % Results area fills the rest
@@ -217,18 +214,53 @@ end
 function runAnalysis(fig)
     st = fig.UserData;
     cla(st.ax); reset(st.ax);
+    % Dispatch on a char vector to avoid any string/char switch quirks.
+    t = char(lower(string(st.detectedType)));
     try
-        switch st.detectedType
-            case "omega",         runRockingCurve(fig);
-            case "twothetaomega", runThetaTwoTheta(fig);
-            case "xrr",           runXRR(fig);
-            case "phi",           runPhiScan(fig);
-            case "rsm",           runRSM(fig);
+        switch t
+            case 'omega',         runRockingCurve(fig);
+            case 'twothetaomega', runThetaTwoTheta(fig);
+            case 'xrr',           runXRR(fig);
+            case 'phi',           runPhiScan(fig);
+            case 'rsm',           runRSM(fig);
             otherwise,            plotBasic(fig);
         end
     catch ME
         uialert(fig, sprintf('Analysis error:\n\n%s', ME.message), ...
             'Analysis error', 'Icon', 'error');
+    end
+end
+
+function t = detectScanType(scan, fnLower)
+%DETECTSCANTYPE  Pick the right analysis route from filename + scan.scanType.
+%
+%   Filename keywords win over scanType because Rigaku labels everything
+%   "twoThetaOmega" even when the scan is really XRR or an RC, and the
+%   filename is what the user actually recognises.
+
+    if contains(fnLower, "xrr")
+        t = "xrr";                   return
+    end
+    if contains(fnLower, "rsm")
+        t = "rsm";                   return
+    end
+    if contains(fnLower, ["phi", "φ"])
+        t = "phi";                   return
+    end
+    if contains(fnLower, [" rc", "_rc", "rocking"])
+        t = "omega";                 return
+    end
+    if contains(fnLower, ["2theta", "th2th", "2th", "theta-omega"])
+        t = "twothetaomega";         return
+    end
+    % Fall back to the loader's own inference
+    t = lower(string(scan.scanType));
+    if t == "twothetaomega"   % leave as-is
+        return
+    elseif t == "omega" || t == "phi" || t == "area"
+        return
+    else
+        t = "twothetaomega";         % safe default: treat as θ-2θ
     end
 end
 
