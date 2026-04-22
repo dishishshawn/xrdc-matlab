@@ -26,7 +26,7 @@ Stubbed (not in the Paik lab's current workflow — kept behind clear `xrdc:io:n
 - `xrdc.io.readRigakuRas` — ASCII RAS (`*MEAS_COND_*` header + `*RAS_INT_START` block)
 - `xrdc.io.readRigakuRaw` — binary RAW1.01/RAW1.02
 
-Not built: GUI (scoped out per Dr. Paik's scripting-first preference).
+GUI: `xrdcApp.m` — self-contained `uifigure` app for lab members who prefer point-and-click. Auto-detects scan type from the file, runs the matching analysis, live plot preview, parameter tweaks re-run on the fly, one-click 600 dpi export. Invoke with `xrdcApp` after adding the repo to the path. See *Quick start* below.
 
 ## Requirements
 
@@ -37,15 +37,32 @@ Not built: GUI (scoped out per Dr. Paik's scripting-first preference).
 
 ## Quick start
 
+### GUI (for lab members)
+
 ```matlab
 cd xrdc-matlab
-addpath(pwd)                                      % make +xrdc visible
+addpath(pwd)
+xrdcApp                                           % opens the interactive app
+```
+
+Click *Load Scan...*, pick any `.txt` or `.xrdml`. The app detects the scan type, runs the appropriate analysis, shows a live preview, and lets you tweak parameters on the fly. *Export 600 dpi...* writes a publication-ready PNG.
+
+### Scripts (for power users)
+
+```matlab
+cd xrdc-matlab
+addpath(pwd)
 runtests                                          % full test suite
 run('examples/demoThetaTwoTheta.m')               % θ-2θ demo
 run('examples/demoRsmKTaO3.m')                    % RSM demo — JVST A 2023 Fig 2(e) style
 ```
 
-All demos export PNG at 600 dpi into the current directory.
+All demos export PNG at 600 dpi into the current directory. To run a demo on your own file, set `fname` in the workspace first:
+
+```matlab
+fname = 'my_scan.txt';
+demoRockingCurve                                  % uses your file
+```
 
 ## Paper parity
 
@@ -72,6 +89,7 @@ xrdc-matlab/
 ├── examples/       6 runnable demo scripts
 ├── tests/          matlab.unittest cases (per-package)
 ├── docs/           USER_GUIDE.md, RIGAKU_NOTES.md
+├── xrdcApp.m       GUI (uifigure) — load → auto-analyze → export
 ├── runtests.m      test-suite entry point
 ├── README.md       this file
 └── CLAUDE.md       conventions for future AI contributions
