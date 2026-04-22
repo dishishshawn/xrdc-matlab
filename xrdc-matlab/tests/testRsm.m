@@ -311,10 +311,14 @@ function testRsmLoadRealKTaO3Data(testCase)
     scans = xrdc.rsm.loadAreaScan(dataDir, 'Pattern', pattern);
     assumeFalse(testCase, isempty(scans), 'No RSM slice files found.');
 
-    % All three slices should load with positive 2θ, positive counts,
-    % a populated secondAxis (omega), and non-NaN wavelength.
-    testCase.verifyEqual(numel(scans), 3);
-    for i = 1:numel(scans)
+    % Each XRDML file is a multi-scan area measurement (~1500 ω-slices),
+    % expanded by readXrdmlArea. Expect at least hundreds of slices total.
+    testCase.verifyGreaterThan(numel(scans), 100);
+
+    % Check the first slice and the middle slice for sanity; walking all
+    % ~4500 would make the test run several seconds.
+    sliceIdx = [1, round(numel(scans) / 2), numel(scans)];
+    for i = sliceIdx
         s = scans(i);
         testCase.verifyGreaterThan(numel(s.twoTheta), 10);
         testCase.verifyGreaterThan(max(s.counts), 0);
@@ -328,7 +332,6 @@ function testRsmLoadRealKTaO3Data(testCase)
         testCase.verifyEqual(numel(kZ), numel(s.twoTheta));
         testCase.verifyTrue(all(isfinite(kP)));
         testCase.verifyTrue(all(isfinite(kZ)));
-        % Physical sanity: Qz should be positive for Bragg reflections
         testCase.verifyGreaterThan(min(kZ), 0);
     end
 end

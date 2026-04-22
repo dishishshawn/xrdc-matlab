@@ -51,19 +51,54 @@ function scans = loadAreaScan(source, options)
             'source must be a folder path (string) or a list of file paths.');
     end
 
-    nFiles = numel(filePaths);
-    scans  = repmat(xrdc.io.emptyScan(), 1, nFiles);
+    nFiles    = numel(filePaths);
+    collected = cell(1, nFiles);
 
     for i = 1:nFiles
-        s = xrdc.io.readScan(filePaths{i});
-        s.scanType = "area";      % mark as area-scan member
-        if ~isnan(options.Lambda)
-            s.lambda = options.Lambda;
+        fp = filePaths{i};
+        [~, ~, ext] = fileparts(fp);
+        if strcmpi(ext, '.xrdml') && isMultiScanXrdml(fp)
+            % Area-scan XRDML: one file contains many ω slices.
+            fileScans = xrdc.io.readXrdmlArea(fp);
+        else
+            fileScans = xrdc.io.readScan(fp);
         end
-        scans(i) = s;
+        for k = 1:numel(fileScans)
+            fileScans(k).scanType = "area";
+            if ~isnan(options.Lambda)
+                fileScans(k).lambda = options.Lambda;
+            end
+        end
+        collected{i} = fileScans;
     end
+
+    scans = [collected{:}];
 
     % Sort by secondAxis ascending (handles unsorted folder listings)
     [~, idx] = sort([scans.secondAxis]);
     scans = scans(idx);
+end
+
+function tf = isMultiScanXrdml(path)
+%ISMULTISCANXRDML  Quickly decide whether an XRDML file has multiple <scan> blocks.
+%   Streams the first ~2 MB looking for a second <scan> tag so large files
+%   don't need full XML parsing just for dispatch.
+    tf = false;
+    fid = fopen(path, 'r');
+    if fid < 0
+        return
+    end
+    cleanup = onCleanup(@() fclose(fid));
+    count = 0;
+    while ~feof(fid)
+        chunk = fread(fid, 1e6, '*char')';
+        if isempty(chunk)
+            break
+        end
+        count = count + numel(regexp(chunk, '<scan\s', 'start'));
+        if count >= 2
+            tf = true;
+            return
+        end
+    end
 end
