@@ -14,8 +14,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport');
-if ~exist('fname', 'var') || isempty(fname)
-    fname = 'HP PtO2 on TiO2 001 112 RSM_C_HP PtO2 on TiO2 001 112 RSM_C.xrdml';
+defaultFname = 'HP PtO2 on TiO2 001 112 RSM_C_HP PtO2 on TiO2 001 112 RSM_C.xrdml';
+if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+    fname = defaultFname;
 end
 
 scans = xrdc.rsm.loadAreaScan({fullfile(dataDir, fname)});

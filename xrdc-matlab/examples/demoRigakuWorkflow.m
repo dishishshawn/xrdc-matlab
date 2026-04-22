@@ -7,8 +7,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
-if ~exist('fname', 'var') || isempty(fname)
-    fname = 'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_film RC_04092026.txt';
+defaultFname = 'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_film RC_04092026.txt';
+if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+    fname = defaultFname;
 end
 scan  = xrdc.io.readScan(fullfile(dataDir, fname));
 

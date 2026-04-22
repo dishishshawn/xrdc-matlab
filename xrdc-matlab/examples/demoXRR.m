@@ -5,8 +5,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
-if ~exist('fname', 'var') || isempty(fname)
-    fname = 'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_XRR_04162026.txt';
+defaultFname = 'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_XRR_04162026.txt';
+if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+    fname = defaultFname;
 end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));
 fprintf('Loaded %s: %d points, 2θ ∈ [%.3f, %.3f]°\n', ...

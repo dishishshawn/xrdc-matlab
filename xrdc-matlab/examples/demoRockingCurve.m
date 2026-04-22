@@ -8,10 +8,12 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
-% If a `fname` variable is already defined in the workspace, use it; otherwise
-% fall back to the default demo file. Lets you do `fname = "myscan.txt"; demoRockingCurve`.
-if ~exist('fname', 'var') || isempty(fname)
-    fname = 'TR_S11_PTO_STO(100)_580c_150mT_20000sh_5hz_Film RC_04162026.txt';
+defaultFname = 'TR_S11_PTO_STO(100)_580c_150mT_20000sh_5hz_Film RC_04162026.txt';
+% If a `fname` variable is set in the workspace AND exists in dataDir, use it;
+% otherwise fall back to the default. Lets you do `fname = "myscan.txt"; demoRockingCurve`
+% without stale fnames from prior demos breaking this one.
+if ~exist('fname', 'var') || isempty(fname) || ~isfile(fullfile(dataDir, fname))
+    fname = defaultFname;
 end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));
 fprintf('Loaded %s  (scanType = %s)\n', scan.identifier, scan.scanType);
