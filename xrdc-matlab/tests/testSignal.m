@@ -30,10 +30,6 @@ end
 
 function testDerivativesRampFirstDeriv(tc)
     % d/dx of x should be 1 everywhere (modulo edges)
-    % Gated on Signal Processing Toolbox (sgolay required).
-    if isempty(which('sgolay'))
-        tc.assumeFail('sgolay not available (Signal Processing Toolbox missing).');
-    end
     x = (0:0.01:10).';
     y = 3 * x;    % slope 3
     [slope, slope2] = xrdc.signal.derivatives(x, y, 11, 3);
@@ -44,10 +40,6 @@ end
 
 function testDerivativesQuadraticSecondDeriv(tc)
     % d²/dx² of x² is 2 everywhere
-    % Gated on Signal Processing Toolbox (sgolay required).
-    if isempty(which('sgolay'))
-        tc.assumeFail('sgolay not available (Signal Processing Toolbox missing).');
-    end
     x = (0:0.01:10).';
     y = x.^2;
     [~, slope2] = xrdc.signal.derivatives(x, y, 15, 3);

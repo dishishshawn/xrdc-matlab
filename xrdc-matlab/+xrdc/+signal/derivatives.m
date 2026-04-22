@@ -57,7 +57,12 @@ function [slope, slope2] = derivatives(twoTheta, counts, frameSize, polyOrder)
     % sgolayfilt: 0th-derivative smooth counts first (unused here, but
     % useful for callers who want smoothed+derivatives). We use the
     % SG coefficient matrix directly to get the derivatives.
-    [~, g] = sgolay(polyOrder, frameSize);
+    % Try Signal Processing Toolbox first; fall back to pure MATLAB implementation.
+    try
+        [~, g] = sgolay(polyOrder, frameSize);
+    catch
+        [~, g] = xrdc.signal.sgolay_fallback(polyOrder, frameSize);
+    end
     % g(:, k+1) gives Savitzky-Golay coefficients for the k-th derivative
     % scaled so that y^{(k)} ≈ factorial(k) * (g(:,k+1).' * window) / step^k.
     slope  = conv(counts, factorial(1) * flipud(g(:, 2)), 'same') / step;
