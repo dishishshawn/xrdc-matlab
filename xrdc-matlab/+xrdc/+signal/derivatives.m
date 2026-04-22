@@ -54,14 +54,12 @@ function [slope, slope2] = derivatives(twoTheta, counts, frameSize, polyOrder)
             'twoTheta is not uniformly spaced; derivatives will be approximate.');
     end
 
-    % sgolayfilt: 0th-derivative smooth counts first (unused here, but
-    % useful for callers who want smoothed+derivatives). We use the
-    % SG coefficient matrix directly to get the derivatives.
-    % Try Signal Processing Toolbox first; fall back to pure MATLAB implementation.
-    try
-        [~, g] = sgolay(polyOrder, frameSize);
-    catch
+    % Use Signal Processing Toolbox sgolay if available; otherwise the
+    % pure-MATLAB fallback. Same coefficient convention either way.
+    if isempty(which('sgolay'))
         [~, g] = xrdc.signal.sgolay_fallback(polyOrder, frameSize);
+    else
+        [~, g] = sgolay(polyOrder, frameSize);
     end
     % g(:, k+1) gives Savitzky-Golay coefficients for the k-th derivative
     % scaled so that y^{(k)} ≈ factorial(k) * (g(:,k+1).' * window) / step^k.

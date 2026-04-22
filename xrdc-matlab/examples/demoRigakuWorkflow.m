@@ -1,105 +1,49 @@
-%DEMORIG AKUWORKFLOW  Complete workflow: load, analyze, plot Rigaku data
-%   Shows the typical steps when using xrdc-matlab with files from
-%   the Rigaku SmartLab machine.
-%
-%   This demo loads a rocking curve (RC), detects the peak, overlays
-%   it on the plot, and computes derivatives for analysis.
+%% Demo: Complete Rigaku workflow — load, find peak, fit, export paper figure.
+%  Takes a single .txt export from the Rigaku SmartLab machine and
+%  produces a publication-ready PNG. Designed as the starting template
+%  when a new sample comes off the machine.
 
-clear; close all; addpath(fullfile(fileparts(mfilename), '..'));
+addpath(fileparts(fileparts(mfilename('fullpath'))));
 
-%% Step 1: Locate your Rigaku files
-% When you export from the Rigaku SmartLab machine, you get a .txt file.
-% The filename tells you what kind of scan it is (look for keywords):
-%   "RC"  or "rocking" -> omega/theta rocking curve  (scanType = "omega")
-%   "phi" -> phi scan                                 (scanType = "phi")
-%   "2theta omega" -> reciprocal space map slice     (scanType = "twoThetaOmega")
-%   "XRR" -> X-ray reflectivity                      (scanType = "twoThetaOmega")
+dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
+    '..', '..', 'rexdrctomatlabport_rigakudatasets');
+fname = 'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_film RC_04092026.txt';
+scan  = xrdc.io.readScan(fullfile(dataDir, fname));
 
-rigaku_dir = fullfile(fileparts(mfilename), '..', '..', '..', 'rexdrctomatlabport_rigakudatasets');
-rc_file = fullfile(rigaku_dir, 'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_film RC_04092026.txt');
+fprintf('Loaded %s\n', scan.identifier);
+fprintf('  scanType = %s, %d points, lambda = %.4f A\n', ...
+    scan.scanType, numel(scan.twoTheta), scan.lambda);
 
-if ~isfile(rc_file)
-    error('Sample Rigaku file not found. Check the rigaku_dir path.');
-end
+%% Detect the tallest peak
+pk = xrdc.peaks.findPeaks(scan, 'MinProminence', max(scan.counts) * 0.05);
+assert(~isempty(pk), 'No peaks detected — check threshold.');
+[~, idxMax] = max([pk.counts]);
+pkMain = pk(idxMax);
 
-%% Step 2: Load the scan
-% xrdc.io.readScan automatically detects the format and calls the right parser.
-scan = xrdc.io.readScan(rc_file);
+%% Fit a Lorentzian around it (+/-0.5 deg window)
+window = [pkMain.twoTheta - 0.5, pkMain.twoTheta + 0.5];
+fit    = xrdc.peaks.fitPeak(scan, window, 'Shape', "lorentz");
 
-fprintf('Loaded scan: %s\n', scan.identifier);
-fprintf('  Type: %s\n', scan.scanType);
-fprintf('  Points: %d\n', numel(scan.twoTheta));
-fprintf('  Wavelength: %.4f Å (Cu Kα1)\n', scan.lambda);
-fprintf('  Count range: [%d, %d]\n', min(scan.counts), max(scan.counts));
+fprintf('Peak centre : %.4f deg\n',      fit.twoTheta);
+fprintf('FWHM        : %.4f deg (%.1f arcsec)\n', fit.fwhm, fit.fwhm*3600);
+fprintf('R^2         : %.4f\n',          fit.rSquared);
 
-%% Step 3: Plot the raw scan
-figure('Name', 'Raw Rocking Curve'); clf;
-semilogy(scan.twoTheta, max(scan.counts, 1), 'b-', 'LineWidth', 1.5);
-xlabel('2\theta (degrees)');
-ylabel('Intensity (counts)');
-title('Rocking Curve (Film Peak)');
-grid on;
+%% Plot: scan + fit overlay in publication style
+h = xrdc.plot.plotScan(scan, ...
+    'Title',     sprintf("PTO/STO film RC — FWHM = %.1f arcsec", fit.fwhm*3600), ...
+    'LogY',      true, ...
+    'ShowPeaks', false);
+xlabel(h.ax, '\omega (\circ)');     % RC x-axis is really omega
 
-%% Step 4: Compute derivatives for peak detection
-% The first derivative tells us where the peak slope is steepest.
-% The second derivative is zero at the peak (inflection point).
-[slope, slope2] = xrdc.signal.derivatives(scan.twoTheta, scan.counts, 11, 3);
+hold(h.ax, 'on');
+plot(h.ax, fit.xFit, fit.yFit, '--', ...
+    'Color', [0.85 0.2 0.2], 'LineWidth', 1.5, 'DisplayName', 'Lorentzian fit');
+plot(h.ax, pkMain.twoTheta, pkMain.counts, 'o', ...
+    'MarkerEdgeColor', 'k', 'MarkerFaceColor', [1 0.8 0.2], ...
+    'MarkerSize', 10, 'DisplayName', 'Peak');
+legend(h.ax, 'Location', 'best');
+hold(h.ax, 'off');
 
-%% Step 5: Find peaks using the second derivative
-% Peaks occur where slope2 crosses zero (going negative).
-% Simple peak detection: find local maxima without Signal Processing Toolbox
-peaks = find(diff(sign(diff(scan.counts))) < 0) + 1;  % Local maxima
-peaks(scan.counts(peaks) < max(scan.counts) * 0.1) = [];  % Filter noise
-
-if ~isempty(peaks)
-    fprintf('\nDetected %d peak(s):\n', numel(peaks));
-    for p = peaks.'
-        fprintf('  Index %d: θ = %.4f°, counts = %d\n', ...
-            p, scan.twoTheta(p), scan.counts(p));
-    end
-end
-
-%% Step 6: Overlay peak locations on plot
-hold on;
-semilogy(scan.twoTheta(peaks), scan.counts(peaks), 'r*', 'MarkerSize', 12, 'DisplayName', 'Peaks');
-legend('Location', 'best');
-hold off;
-
-%% Step 7: Plot derivatives to visualize peak detection
-fig2 = figure('Name', 'Derivatives');
-ax1 = subplot(2, 1, 1);
-plot(ax1, scan.twoTheta, slope, 'b', 'LineWidth', 1.5);
-xlabel(ax1, '2\theta (degrees)');
-ylabel(ax1, 'dI/d\theta (counts/°)');
-title(ax1, 'First Derivative (Slope)');
-grid(ax1, 'on');
-
-ax2 = subplot(2, 1, 2);
-plot(ax2, scan.twoTheta, slope2, 'r', 'LineWidth', 1.5);
-hold(ax2, 'on');
-yline(ax2, 0, 'k--', 'LineWidth', 1);
-plot(ax2, scan.twoTheta(peaks), slope2(peaks), 'go', 'MarkerSize', 8, 'DisplayName', 'Zero Crossings');
-xlabel(ax2, '2\theta (degrees)');
-ylabel(ax2, 'd²I/d\theta² (counts/°²)');
-title(ax2, 'Second Derivative (Curvature)');
-legend(ax2, 'Location', 'best');
-grid(ax2, 'on');
-hold(ax2, 'off');
-
-%% Step 8 (Optional): Load multiple scans from a folder
-% If you have several related scans (e.g., different substrate and film peaks),
-% you can load them all at once.
-%
-% Example: load all "RC" scans from a folder
-% rc_files = dir(fullfile(rigaku_dir, '*RC*'));
-% scans = [];
-% for f = {rc_files.name}
-%     try
-%         scans = [scans, xrdc.io.readScan(fullfile(rigaku_dir, f{1}))];
-%     catch
-%         % Skip files that fail to parse
-%     end
-% end
-
-fprintf('\n✓ Demo complete. Check figures for results.\n');
-fprintf('  Next: Export peak positions, fit peak widths, or compare multiple scans.\n');
+outPath = fullfile(pwd, 'demoRigakuWorkflow.png');
+exportgraphics(h.figure, outPath, 'Resolution', 600);
+fprintf('Saved: %s\n', outPath);
