@@ -136,6 +136,11 @@ function h = plotRsm(scans, options)
 
     % --- Colorbar with decade ticks ---------------------------------
     colormap(ax, options.Colormap);
+    % Guard: caxis requires strictly increasing limits. Uniform data (Imin==Imax)
+    % occurs in synthetic tests and degenerate plots — pad by one decade.
+    if ~(Imax > Imin)
+        Imax = max(Imin * 10, Imin + 1);
+    end
     [ticks, tickLabels] = decadeTicks(Imin, Imax);
     cb = colorbar(ax, 'Ticks', ticks, 'TickLabels', tickLabels);
     cb.Label.String   = 'Intensity (counts)';

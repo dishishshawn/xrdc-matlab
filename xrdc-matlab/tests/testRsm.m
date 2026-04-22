@@ -142,9 +142,10 @@ function testKnownAnswerCuKaSrTiO3_002(testCase)
 
     [kPar, kPerp] = xrdc.rsm.toReciprocalSpace(s);
 
-    kPerpExpected = 2 / d_002;   % = 2*sin(θ)/λ at Bragg condition
+    % At Bragg: sin(θ) = λ/(2d) ⟹ k_perp = (2/λ)·sin(θ)·cos(ω-θ) = 1/d
+    kPerpExpected = 1 / d_002;
     testCase.verifyLessThan(abs(kPerp - kPerpExpected), 1e-10, ...
-        'k_perp at SrTiO3(002) Bragg angle does not match 2/d.');
+        'k_perp at SrTiO3(002) Bragg angle does not match 1/d.');
     testCase.verifyLessThan(abs(kPar), 1e-10, ...
         'k_par at symmetric Bragg angle must be ~0.');
 end
@@ -212,7 +213,8 @@ function testLoadAreaScanFromFileList(testCase)
 
     testCase.verifyEqual(numel(scans), 2);
     % All elements must have scanType = "area"
-    testCase.verifyTrue(all(strcmp({scans.scanType}, 'area')), ...
+    % Use == instead of strcmp — cell-of-strings vs char is unreliable in R2026a
+    testCase.verifyTrue(all(string({scans.scanType}) == "area"), ...
         'All loaded scans must have scanType "area".');
     testCase.verifyEqual(numel(scans(1).twoTheta), 21);
 end
