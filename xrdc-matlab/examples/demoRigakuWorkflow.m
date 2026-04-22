@@ -7,7 +7,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
-fname = 'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_film RC_04092026.txt';
+if ~exist('fname', 'var') || isempty(fname)
+    fname = 'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_film RC_04092026.txt';
+end
 scan  = xrdc.io.readScan(fullfile(dataDir, fname));
 
 fprintf('Loaded %s\n', scan.identifier);
@@ -44,6 +46,7 @@ plot(h.ax, pkMain.twoTheta, pkMain.counts, 'o', ...
 legend(h.ax, 'Location', 'best');
 hold(h.ax, 'off');
 
-outPath = fullfile(pwd, 'demoRigakuWorkflow.png');
+[~, stem, ~] = fileparts(fname);
+outPath = fullfile(pwd, sprintf('workflow_%s.png', stem));
 exportgraphics(h.figure, outPath, 'Resolution', 600);
 fprintf('Saved: %s\n', outPath);

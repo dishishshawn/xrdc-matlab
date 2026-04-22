@@ -8,7 +8,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 % doesn't have an equivalent phi export.
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport');
-fname   = 'HP_TiO2 101 phi scan 3pixcel 1_8 slit.xrdml';
+if ~exist('fname', 'var') || isempty(fname)
+    fname = 'HP_TiO2 101 phi scan 3pixcel 1_8 slit.xrdml';
+end
 scan    = xrdc.io.readScan(fullfile(dataDir, fname));
 fprintf('Loaded %s  (scanType = %s)\n', scan.identifier, scan.scanType);
 
@@ -31,6 +33,7 @@ h = xrdc.plot.plotScan(scan, ...
     'ShowPeaks', true);
 xlabel(h.ax, '\phi (\circ)');
 
-outPath = fullfile(pwd, 'demoPhiScan.png');
+[~, stem, ~] = fileparts(fname);
+outPath = fullfile(pwd, sprintf('phi_%s.png', stem));
 exportgraphics(h.figure, outPath, 'Resolution', 600);
 fprintf('Saved: %s\n', outPath);

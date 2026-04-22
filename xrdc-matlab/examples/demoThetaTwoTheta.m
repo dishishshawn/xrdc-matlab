@@ -8,7 +8,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
-fname = 'TR_S04_PTO_STO(100)_750c_200mT_1000sh_3hz_2theta omega_04072026.txt';
+if ~exist('fname', 'var') || isempty(fname)
+    fname = 'TR_S04_PTO_STO(100)_750c_200mT_1000sh_3hz_2theta omega_04072026.txt';
+end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));
 
 fprintf('Loaded: %s\n', scan.identifier);
@@ -41,6 +43,7 @@ for i = 1:numel(T.twoTheta)
         'LabelVerticalAlignment', 'top');
 end
 
-outPath = fullfile(pwd, 'demoThetaTwoTheta.png');
+[~, stem, ~] = fileparts(fname);
+outPath = fullfile(pwd, sprintf('th2th_%s.png', stem));
 exportgraphics(h.figure, outPath, 'Resolution', 600);
 fprintf('\nSaved: %s\n', outPath);

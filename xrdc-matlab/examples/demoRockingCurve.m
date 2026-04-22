@@ -8,7 +8,11 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
-fname = 'TR_S11_PTO_STO(100)_580c_150mT_20000sh_5hz_Film RC_04162026.txt';
+% If a `fname` variable is already defined in the workspace, use it; otherwise
+% fall back to the default demo file. Lets you do `fname = "myscan.txt"; demoRockingCurve`.
+if ~exist('fname', 'var') || isempty(fname)
+    fname = 'TR_S11_PTO_STO(100)_580c_150mT_20000sh_5hz_Film RC_04162026.txt';
+end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));
 fprintf('Loaded %s  (scanType = %s)\n', scan.identifier, scan.scanType);
 
@@ -42,6 +46,7 @@ hold(h.ax, 'on');
 plot(h.ax, fit.xFit, fit.yFit, '--', ...
     'Color', [0.85 0.2 0.2], 'LineWidth', 1.5);
 
-outPath = fullfile(pwd, 'demoRockingCurve.png');
+[~, stem, ~] = fileparts(fname);
+outPath = fullfile(pwd, sprintf('RC_%s.png', stem));
 exportgraphics(h.figure, outPath, 'Resolution', 600);
 fprintf('Saved: %s\n', outPath);

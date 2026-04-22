@@ -5,7 +5,9 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport_rigakudatasets');
-fname = 'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_XRR_04162026.txt';
+if ~exist('fname', 'var') || isempty(fname)
+    fname = 'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_XRR_04162026.txt';
+end
 scan = xrdc.io.readScan(fullfile(dataDir, fname));
 fprintf('Loaded %s: %d points, 2θ ∈ [%.3f, %.3f]°\n', ...
     scan.identifier, numel(scan.twoTheta), scan.twoTheta(1), scan.twoTheta(end));
@@ -50,6 +52,7 @@ h = xrdc.plot.plotScan(scan, ...
     'ShowPeaks', true);
 xlim(h.ax, [0, min(5, scan.twoTheta(end))]);
 
-outPath = fullfile(pwd, 'demoXRR.png');
+[~, stem, ~] = fileparts(fname);
+outPath = fullfile(pwd, sprintf('xrr_%s.png', stem));
 exportgraphics(h.figure, outPath, 'Resolution', 600);
 fprintf('Saved: %s\n', outPath);

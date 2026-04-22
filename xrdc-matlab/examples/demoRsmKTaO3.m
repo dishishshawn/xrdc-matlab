@@ -10,12 +10,13 @@
 %
 %   Run from xrdc-matlab/ root.
 
-clear;
 addpath(fileparts(fileparts(mfilename('fullpath'))));
 
 dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
     '..', '..', 'rexdrctomatlabport');
-fname = 'HP PtO2 on TiO2 001 112 RSM_C_HP PtO2 on TiO2 001 112 RSM_C.xrdml';
+if ~exist('fname', 'var') || isempty(fname)
+    fname = 'HP PtO2 on TiO2 001 112 RSM_C_HP PtO2 on TiO2 001 112 RSM_C.xrdml';
+end
 
 scans = xrdc.rsm.loadAreaScan({fullfile(dataDir, fname)});
 fprintf('Loaded %d ω-slices from %s\n', numel(scans), fname);
@@ -25,13 +26,16 @@ fprintf('  2θ ∈ [%.3f°, %.3f°], %d points per slice\n', ...
     scans(1).twoTheta(1), scans(1).twoTheta(end), numel(scans(1).twoTheta));
 
 % Fig 2(e) style: contourf, log decade colorbar, Painters renderer.
+[~, stem, ~] = fileparts(fname);
+outPath = fullfile(pwd, sprintf('rsm_%s.png', stem));
+
 h = xrdc.plot.plotRsm(scans, ...
     'Mode',       "contourf", ...
     'NContours',  40, ...
     'Imin',       1, ...
     'Imax',       1e5, ...
     'Colormap',   "turbo", ...
-    'ExportPath', fullfile(pwd, 'demoRsm_fig2e.png'));
+    'ExportPath', outPath);
 
 title(h.ax, 'PtO_2 (112) RSM — Fig 2(e) style');
-fprintf('Saved: demoRsm_fig2e.png (600 dpi)\n');
+fprintf('Saved: %s (600 dpi)\n', outPath);
