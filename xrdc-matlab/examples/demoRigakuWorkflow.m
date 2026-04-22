@@ -15,7 +15,7 @@ clear; close all; addpath(fullfile(fileparts(mfilename), '..'));
 %   "2theta omega" -> reciprocal space map slice     (scanType = "twoThetaOmega")
 %   "XRR" -> X-ray reflectivity                      (scanType = "twoThetaOmega")
 
-rigaku_dir = fullfile(fileparts(mfilename), '..', '..', 'rexdrctomatlabport_rigakudatasets');
+rigaku_dir = fullfile(fileparts(mfilename), '..', '..', '..', 'rexdrctomatlabport_rigakudatasets');
 rc_file = fullfile(rigaku_dir, 'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_film RC_04092026.txt');
 
 if ~isfile(rc_file)
@@ -33,10 +33,11 @@ fprintf('  Wavelength: %.4f Å (Cu Kα1)\n', scan.lambda);
 fprintf('  Count range: [%d, %d]\n', min(scan.counts), max(scan.counts));
 
 %% Step 3: Plot the raw scan
-fig1 = figure('Name', 'Raw Rocking Curve');
-h1 = xrdc.plot.plotScan(scan, ...
-    'Title', 'Rocking Curve (Film Peak)', ...
-    'LogY', true);
+figure('Name', 'Raw Rocking Curve'); clf;
+semilogy(scan.twoTheta, max(scan.counts, 1), 'b-', 'LineWidth', 1.5);
+xlabel('2\theta (degrees)');
+ylabel('Intensity (counts)');
+title('Rocking Curve (Film Peak)');
 grid on;
 
 %% Step 4: Compute derivatives for peak detection
@@ -46,8 +47,9 @@ grid on;
 
 %% Step 5: Find peaks using the second derivative
 % Peaks occur where slope2 crosses zero (going negative).
-zero_crossings = find(diff(sign(slope2)) < 0);  % Negative crossing
-[~, peaks] = findpeaks(-slope2);  % Or use findpeaks on negative slope2
+% Simple peak detection: find local maxima without Signal Processing Toolbox
+peaks = find(diff(sign(diff(scan.counts))) < 0) + 1;  % Local maxima
+peaks(scan.counts(peaks) < max(scan.counts) * 0.1) = [];  % Filter noise
 
 if ~isempty(peaks)
     fprintf('\nDetected %d peak(s):\n', numel(peaks));
@@ -58,10 +60,10 @@ if ~isempty(peaks)
 end
 
 %% Step 6: Overlay peak locations on plot
-hold(h1.ax, 'on');
-plot(h1.ax, scan.twoTheta(peaks), scan.counts(peaks), 'r*', 'MarkerSize', 12, 'DisplayName', 'Peaks');
-legend(h1.ax, 'Location', 'best');
-hold(h1.ax, 'off');
+hold on;
+semilogy(scan.twoTheta(peaks), scan.counts(peaks), 'r*', 'MarkerSize', 12, 'DisplayName', 'Peaks');
+legend('Location', 'best');
+hold off;
 
 %% Step 7: Plot derivatives to visualize peak detection
 fig2 = figure('Name', 'Derivatives');
@@ -99,5 +101,5 @@ hold(ax2, 'off');
 %     end
 % end
 
-fprintf('\n✓ Demo complete. Check figures fig1 and fig2.\n');
+fprintf('\n✓ Demo complete. Check figures for results.\n');
 fprintf('  Next: Export peak positions, fit peak widths, or compare multiple scans.\n');

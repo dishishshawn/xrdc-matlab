@@ -120,7 +120,12 @@ function peaks = findPeaks(scan, options)
         fpArgs = [fpArgs, {'MaxPeakWidth', options.MaxWidth / max(step,eps)}];
     end
 
-    [pks, locs, widths, proms] = findpeaks(yw, fpArgs{:});
+    % Try Signal Processing Toolbox first; fall back to pure MATLAB implementation
+    try
+        [pks, locs, widths, proms] = findpeaks(yw, fpArgs{:});
+    catch
+        [pks, locs, widths, proms] = xrdc.peaks.findpeaks_fallback(yw, fpArgs{:});
+    end
 
     % findpeaks returns `locs` as indices into yw (the cropped vector).
     if isempty(pks)
