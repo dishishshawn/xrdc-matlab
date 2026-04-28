@@ -168,9 +168,9 @@ function buildAnalysisPanel(fig)
         case 'twothetaomega'
             row = addEdit (g, row, 'Min prom (%)',   '5',   @(v) onParamChange(fig, 'promPct',   v));
         case 'xrr'
-            row = addEdit (g, row, 'Fringe 2θ min',  '0.5', @(v) onParamChange(fig, 'xrrMin',    v));
-            row = addEdit (g, row, 'Fringe 2θ max',  '3.0', @(v) onParamChange(fig, 'xrrMax',    v));
-            row = addEdit (g, row, 'Min prom (%)',   '2',   @(v) onParamChange(fig, 'xrrProm',   v));
+            row = addEdit (g, row, 'Fringe 2θ min',  '0',   @(v) onParamChange(fig, 'xrrMin',    v));
+            row = addEdit (g, row, 'Fringe 2θ max',  '5.0', @(v) onParamChange(fig, 'xrrMax',    v));
+            row = addEdit (g, row, 'Min prom (%)',   '1.5', @(v) onParamChange(fig, 'xrrProm',   v));
         case 'phi'
             row = addEdit (g, row, 'Min prom (%)',   '10',  @(v) onParamChange(fig, 'promPct',   v));
         case 'rsm'
@@ -336,22 +336,66 @@ function runXRR(fig)
     stylePubAxes(ax, '2\theta (°)', 'Counts', 'XRR');
     xlim(ax, [0, min(5, scan.twoTheta(end))]);
 
-    xrrMin = getNum(st.params, 'xrrMin',   0.5);
-    xrrMax = getNum(st.params, 'xrrMax',   3.0);
-    prom   = getNum(st.params, 'xrrProm',  2);
+    % Mirrors demoXRR: detect on log10(counts) with the slow envelope removed
+    % so each fringe contributes the same ~few-percent ripple regardless of
+    % absolute height. Critical edge auto-detected from steepest descent of
+    % log(counts) when the user leaves "2θ min" at 0.
+    xrrMin  = getNum(st.params, 'xrrMin',   0);     % 0 = auto critical edge
+    xrrMax  = getNum(st.params, 'xrrMax',   5.0);
+    promPct = getNum(st.params, 'xrrProm',  1.5);   % % ripple on log decade
 
-    mask = scan.twoTheta > xrrMin & scan.twoTheta < xrrMax;
-    sub  = scan; sub.twoTheta = scan.twoTheta(mask); sub.counts = scan.counts(mask);
+    tt   = scan.twoTheta(:);
+    ylog = log10(max(double(scan.counts(:)), 1));
 
-    lines = {sprintf('Fringe search range: [%.2f°, %.2f°]', xrrMin, xrrMax)};
+    if xrrMin > 0
+        winLo  = xrrMin;
+        edgeMsg = sprintf('Lower bound (manual) = %.3f°', winLo);
+    else
+        dy = gradient(ylog, tt);
+        edgeRegion = tt < 1.5;
+        dyMasked = dy;
+        dyMasked(~edgeRegion) = +Inf;
+        [minSlope, iEdge] = min(dyMasked);
+        if ~isfinite(minSlope) || minSlope >= 0
+            theta_c = 0.4;
+        else
+            theta_c = tt(iEdge);
+        end
+        winLo  = theta_c + 0.05;
+        edgeMsg = sprintf('Critical edge (auto) ≈ %.3f° → start at %.3f°', theta_c, winLo);
+    end
+    winHi = min(xrrMax, tt(end));
+
+    mask = tt > winLo & tt < winHi;
+    lines = {edgeMsg, sprintf('Fringe search range: [%.3f°, %.3f°]', winLo, winHi)};
     if nnz(mask) < 5
         lines{end+1} = '— not enough points in range';
         writeResults(fig, lines); return
     end
 
-    pk = xrdc.peaks.findPeaks(sub, ...
-        'MinProminence', max(sub.counts) * prom / 100, ...
+    xseg = tt(mask);
+    yseg = ylog(mask);
+
+    step    = median(diff(xseg));
+    spanPts = max(5, round(0.4 / max(step, eps)));
+    envelope = movmean(yseg, spanPts);
+    ydet     = yseg - envelope;
+
+    subScan = scan;
+    subScan.twoTheta = xseg;
+    subScan.counts   = ydet;
+
+    pk = xrdc.peaks.findPeaks(subScan, ...
+        'MinProminence', promPct / 100, ...
         'MinSeparation', 0.05);
+
+    if ~isempty(pk)
+        for k = 1:numel(pk)
+            [~, j] = min(abs(scan.twoTheta - pk(k).twoTheta));
+            pk(k).counts = scan.counts(j);
+            pk(k).index  = j;
+        end
+    end
     lines{end+1} = sprintf('Fringes detected: %d', numel(pk));
 
     if numel(pk) >= 2
