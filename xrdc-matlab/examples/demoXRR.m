@@ -19,16 +19,60 @@ fprintf('Loaded %s: %d points, 2θ ∈ [%.3f, %.3f]°\n', ...
     scan.identifier, numel(scan.twoTheta), scan.twoTheta(1), scan.twoTheta(end));
 
 %% Find Kiessig fringes (small 2θ, after critical edge)
-% Work on a sub-scan in the fringe region
+% XRR intensity drops 5–6 decades over the fringe region, so any prominence
+% threshold tied to max(counts) only ever sees the first 1–2 fringes near
+% the critical edge. Detect on log10(counts) with the slow envelope removed,
+% so each fringe contributes the same ~few-percent ripple regardless of
+% absolute height. Critical-edge position is auto-found from the steepest
+% descent of log(counts) below 1.5° — removes the need to hand-tune the
+% lower bound per sample.
+tt    = scan.twoTheta(:);
+ylog  = log10(max(double(scan.counts(:)), 1));
+
+dy = gradient(ylog, tt);
+edgeRegion = tt < 1.5;
+dyMasked = dy;
+dyMasked(~edgeRegion) = +Inf;     % force argmin into the edge region
+[minSlope, iEdge] = min(dyMasked);
+if ~isfinite(minSlope) || minSlope >= 0
+    theta_c = 0.4;                % fallback if no clear edge below 1.5°
+else
+    theta_c = tt(iEdge);
+end
+
+winLo = theta_c + 0.05;
+winHi = min(5.0, tt(end));
+mask  = tt > winLo & tt < winHi;
+xseg  = tt(mask);
+yseg  = ylog(mask);
+
+% Detrend with a moving-average envelope. Span ~0.4° is wide enough to be
+% smooth across several fringes for typical 5–50 nm films, narrow enough to
+% follow the steep post-edge decay.
+step    = median(diff(xseg));
+spanPts = max(5, round(0.4 / max(step, eps)));
+envelope = movmean(yseg, spanPts);
+ydet     = yseg - envelope;
+
 subScan = scan;
-mask    = scan.twoTheta > 0.5 & scan.twoTheta < 3.0;
-subScan.twoTheta = scan.twoTheta(mask);
-subScan.counts   = scan.counts(mask);
+subScan.twoTheta = xseg;
+subScan.counts   = ydet;     % detrended log signal, dimensionless
 
 pk = xrdc.peaks.findPeaks(subScan, ...
-    'MinProminence',  max(subScan.counts) * 0.02, ...
-    'MinSeparation',  0.05);
-fprintf('Found %d Kiessig fringes between 0.5° and 3°.\n', numel(pk));
+    'MinProminence', 0.015, ...   % ~3.5% intensity ripple in log units
+    'MinSeparation', 0.05);
+
+% Re-attach real counts at each fringe so plotScan markers land on the
+% physical curve rather than on the detrended residual.
+if ~isempty(pk)
+    for k = 1:numel(pk)
+        [~, j] = min(abs(scan.twoTheta - pk(k).twoTheta));
+        pk(k).counts = scan.counts(j);
+        pk(k).index  = j;
+    end
+end
+fprintf('Critical edge ≈ %.3f°. Found %d Kiessig fringes in [%.2f°, %.2f°].\n', ...
+    theta_c, numel(pk), winLo, winHi);
 
 %% Thickness from fringe periodicity
 if numel(pk) < 2
