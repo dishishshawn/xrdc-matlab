@@ -11,7 +11,7 @@ function scan = syntheticScan(x, centers, fwhms, amps, shape, bgLevel, noiseSd)
     x = x(:);
     y = bgLevel * ones(size(x));
     for k = 1:numel(centers)
-        y = y + evalShapeTest(x, centers(k), fwhms(k), amps(k), shape);
+        y = y + evalShape(x, centers(k), fwhms(k), amps(k), shape);
     end
     if noiseSd > 0
         rng(1);
@@ -23,7 +23,7 @@ function scan = syntheticScan(x, centers, fwhms, amps, shape, bgLevel, noiseSd)
     scan.sourceFormat = "synthetic";
 end
 
-function y = evalShapeTest(x, x0, fwhm, amp, shape)
+function y = evalShape(x, x0, fwhm, amp, shape)
     switch shape
         case "lorentz"
             g = fwhm / 2;
@@ -188,8 +188,8 @@ function testFitPeakPseudoVoigtRecovery(tc)
     % Build a synthetic pseudo-Voigt (50/50 mix) and recover η
     x = (28:0.01:32).';
     fwhm = 0.3;
-    yL = evalShapeTest(x, 30, fwhm, 1, "lorentz");
-    yG = evalShapeTest(x, 30, fwhm, 1, "gauss");
+    yL = evalShape(x, 30, fwhm, 1, "lorentz");
+    yG = evalShape(x, 30, fwhm, 1, "gauss");
     y  = 100 + 10000 * (0.5 * yL + 0.5 * yG);
     scan = xrdc.io.emptyScan();
     scan.twoTheta = x; scan.counts = y;
