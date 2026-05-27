@@ -28,3 +28,7 @@ xrdc-matlab/examples/*.png
 xrdc-matlab/examples/*.pdf
 xrdc-matlab/examples/*.eps
 xrdc-matlab/examples/*.fig
+
+# XRD test data — keep only the zip, ignore loose files
+data/*
+!data/data.zip

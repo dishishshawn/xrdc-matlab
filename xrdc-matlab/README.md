@@ -1,113 +1,108 @@
 # xrdc-matlab
 
-MATLAB port of XRDC — the X-ray diffraction analysis tool originally written in Delphi by Dr. Tassilo Heeg (FZJ/ISG1-IT, 2003+). Reimplemented for the Paik group to handle Rigaku SmartLab exports, organise data more cleanly, and produce consistent publication-quality figures matching Schwaigert et al. *J. Vac. Sci. Technol. A* 41, 022703 (2023).
+MATLAB toolkit for X-ray diffraction analysis in the Paik group. Reads Rigaku SmartLab and PANalytical files, runs the common analyses (θ-2θ, rocking curve, φ scan, XRR, reciprocal-space map), and produces publication-ready figures matching Schwaigert et al. *J. Vac. Sci. Technol. A* **41**, 022703 (2023), Fig 2.
 
-See `../ALGORITHM_SPEC.md` for algorithm derivations, `../PROJECT_PLAN.md` for the phased roadmap, and `docs/USER_GUIDE.md` for usage.
+Two ways to use it: a **GUI** for point-and-click work, or **scripts** when you want full control.
 
-## Status
+---
 
-**Phases 1–6 complete. Handoff-ready pending MATLAB run of the full test suite on the lab's machine.**
+## 1. Install
 
-Implemented:
+You need **MATLAB R2022b or newer**. The Signal Processing and Optimization toolboxes are recommended; the code has fallbacks if either is missing.
 
-- `+xrdc/+io/` — PANalytical XRDML (XML), Philips `.x00`, plain text, **Rigaku SmartLab `.txt`** (both headered and headerless variants). Format-sniffing dispatcher (`readScan`) with scanType inference from filename for Rigaku files.
-- `+xrdc/+signal/` — moving-average smoothing, background subtraction, Savitzky-Golay 1st/2nd derivatives.
-- `+xrdc/+peaks/` — prominence-based detector (`findPeaks`, wraps MATLAB `findpeaks`), legacy slope / slope² detectors (`findPeaksLegacy`, direct port of Delphi `ScanPeak1`/`ScanPeak2`), FWHM area-bisector refinement (`adjustPeaks`), Lorentz/Gauss/pseudo-Voigt fitting (`fitPeak`, `lsqcurvefit` by default with Jacobian SEs; Delphi 20³ grid search under `'Method','bruteforce'`).
-- `+xrdc/+lattice/` — Bragg's law, energy↔wavelength, d-spacing for all seven crystal systems, Nelson-Riley extrapolation (textbook OLS SEs — deliberately diverges from `xrdc3.pas:281`, see ALGORITHM_SPEC §6.3), Kiessig-fringe film thickness, vectorised structure simulation with symmetry-equivalent merging.
-- `+xrdc/+rsm/` — reciprocal-space coordinate transform (θ-asymmetry preserved per ALGORITHM_SPEC §7.1), folder/file-list area-scan loader, click-to-align goniometer-offset workflow.
-- `+xrdc/+plot/` — `publicationStyle` (central style knob for the JVST-A-2023 invariants), `plotScan`, `plotStack` (waterfall with the Delphi 3^(j) / 10^(20·j/N) multiplier and a deterministic palette), `plotRsm` (filled contour with log decade colorbar — Fig 2(e) style).
-- `+xrdc/+data/` — `xrayLines.json`, `substrates.json` (ported from `XRAY.def` / `Substrates.def`).
-- Unit tests for every package under `tests/`. Tests requiring real lab data auto-skip via `assumeTrue(isfile(...))` when the data folder is absent.
-- `examples/` — six demo scripts covering θ-2θ, XRR, rocking curve, phi scan, RSM, and structure-simulation workflows.
-- `docs/USER_GUIDE.md` + `docs/RIGAKU_NOTES.md`.
-
-Stubbed (not in the Paik lab's current workflow — kept behind clear `xrdc:io:notImplemented` error messages in case historical archive files surface):
-
-- `xrdc.io.readRigakuRas` — ASCII RAS (`*MEAS_COND_*` header + `*RAS_INT_START` block)
-- `xrdc.io.readRigakuRaw` — binary RAW1.01/RAW1.02
-
-GUI: `xrdcApp.m` — self-contained `uifigure` app for lab members who prefer point-and-click. Auto-detects scan type from the file, runs the matching analysis, live plot preview, parameter tweaks re-run on the fly, one-click 600 dpi export. Invoke with `xrdcApp` after adding the repo to the path. See *Quick start* below.
-
-## Requirements
-
-- MATLAB R2022b or newer (uses `arguments` blocks and `smoothdata`).
-- **Signal Processing Toolbox** — `sgolay`, `sgolayfilt`, `findpeaks`.
-- **Optimization Toolbox** — `lsqcurvefit` in `xrdc.peaks.fitPeak`; fallback `'Method','bruteforce'` works without it.
-- **Statistics and Machine Learning Toolbox** — recommended (used by `fitlm` in one Nelson-Riley cross-check test).
-
-## Quick start
-
-### GUI (for lab members)
+Clone or copy the repo, then from MATLAB:
 
 ```matlab
 cd xrdc-matlab
 addpath(pwd)
-xrdcApp                                           % opens the interactive app
+runtests                                          % optional — confirm green
 ```
 
-Click *Load Scan...*, pick any `.txt` or `.xrdml`. The app detects the scan type, runs the appropriate analysis, shows a live preview, and lets you tweak parameters on the fly. *Export 600 dpi...* writes a publication-ready PNG.
+That's it. Nothing is compiled; everything lives under `+xrdc/`.
 
-### Scripts (for power users)
+---
+
+## 2. Use the GUI (recommended if you don't write MATLAB)
 
 ```matlab
-cd xrdc-matlab
-addpath(pwd)
-runtests                                          % full test suite
-run('examples/demoThetaTwoTheta.m')               % θ-2θ demo
-run('examples/demoRsmKTaO3.m')                    % RSM demo — JVST A 2023 Fig 2(e) style
+xrdcApp
 ```
 
-All demos export PNG at 600 dpi into the current directory. To run a demo on your own file, set `fname` in the workspace first:
+1. Click **Load Scan...** and pick any `.txt` (Rigaku SmartLab) or `.xrdml` (PANalytical) file.
+2. The app detects the scan type (θ-2θ, rocking curve, φ scan, XRR) and runs the matching analysis automatically.
+3. Adjust parameters on the left panel — the plot re-runs live.
+4. Click **Export 600 dpi...** to save a publication-ready PNG.
+
+That covers most day-to-day work. For RSM and anything custom, drop down to the scripts.
+
+---
+
+## 3. Use the scripts
+
+Each common workflow has a demo in `examples/`. Run a demo as-is to see the expected output, then point it at your own file by setting `fname` in the workspace first:
 
 ```matlab
 fname = 'my_scan.txt';
-demoRockingCurve                                  % uses your file
+run('examples/demoRockingCurve.m')
 ```
 
-## Paper parity
+| Workflow                       | Demo script                  | What it does                                                  |
+| ------------------------------ | ---------------------------- | ------------------------------------------------------------- |
+| θ-2θ scan + substrate overlay  | `demoThetaTwoTheta.m`        | Loads scan, finds peaks, overlays simulated substrate 00L     |
+| Rocking curve → FWHM           | `demoRockingCurve.m`         | Lorentzian fit, FWHM in arcsec                                |
+| φ scan symmetry check          | `demoPhiScan.m`              | Linear-Y plot, detects 4-fold peaks, reports spacings         |
+| XRR + Kiessig thickness        | `demoXRR.m`                  | Specular fit, fringe detection, film thickness in nm          |
+| Reciprocal-space map           | `demoRsmKTaO3.m`             | Filled contour, log decade colorbar (Fig 2(e) style)          |
+| Structure simulation           | `demoStructureSim.m`         | Predict 2θ for a given crystal system + (hkl) list            |
+| Rigaku I/O sanity              | `demoRigakuWorkflow.m`       | End-to-end read → smooth → peaks → plot on a Rigaku file      |
 
-Target style: Schwaigert et al. *J. Vac. Sci. Technol. A* 41, 022703 (2023), Fig 2.
+All demos export 600 dpi PNGs to the current directory.
 
-- Fig 2(a) θ-2θ log-Y with substrate ticks — `demoThetaTwoTheta.m`
-- Fig 2(b) zoom + Laue fringes — combine with `xlim` on the output of `plotScan`
-- Fig 2(c)/(d) rocking curves + FWHM — `demoRockingCurve.m`
-- Fig 2(e) RSM contourf + log decade colorbar — `demoRsmKTaO3.m`
-- Fig S1 XRR + Kiessig thickness — `demoXRR.m`
+If you'd rather call the functions directly:
 
-## Package layout
+```matlab
+scan = xrdc.io.readScan('path/to/file.txt');     % auto-detects format
+pk   = xrdc.peaks.findPeaks(scan, 'MinProminence', 100);
+fit  = xrdc.peaks.fitPeak(scan, [22.5 23.5], 'Shape', 'lorentz');
+xrdc.plot.plotScan(scan, 'Title', "PbTiO_3/SrTiO_3");
+```
+
+**See `docs/USER_GUIDE.md` for the full API, the scan-struct schema, and per-workflow detail.**
+
+---
+
+## 4. Supported file formats
+
+`xrdc.io.readScan` auto-detects from the first 512 bytes:
+
+- **Rigaku SmartLab** `.txt` (both headered and headerless variants)
+- **PANalytical** `.xrdml` (single scan and multi-scan area files)
+- **Philips** `.x00`
+- Plain two-column text
+
+Rigaku binary `.raw` and ASCII `.ras` are not currently in the lab workflow and are stubbed — let me know if you have files in those formats and we'll wire them in.
+
+---
+
+## 5. Layout
 
 ```
 xrdc-matlab/
-├── +xrdc/
-│   ├── +io/        file-format parsers + dispatcher (XRDML, Philips .x00, Rigaku .txt, plain text)
-│   ├── +signal/    smoothing, background, Savitzky-Golay derivatives
-│   ├── +peaks/     prominence + legacy detectors, FWHM refine, peak fit
-│   ├── +lattice/   Bragg, d-spacing, Nelson-Riley, structure simulation, film thickness
-│   ├── +rsm/       reciprocal-space transform, area-scan loader, click-to-align
-│   ├── +plot/      publicationStyle, plotScan, plotStack, plotRsm
-│   └── +data/      substrates.json, xrayLines.json
-├── examples/       6 runnable demo scripts
-├── tests/          matlab.unittest cases (per-package)
-├── docs/           USER_GUIDE.md, RIGAKU_NOTES.md
-├── xrdcApp.m       GUI (uifigure) — load → auto-analyze → export
-├── runtests.m      test-suite entry point
-├── README.md       this file
-└── CLAUDE.md       conventions for future AI contributions
+  +xrdc/          core package — io, signal, peaks, lattice, rsm, plot, data
+  examples/       7 demo scripts (run from repo root)
+  tests/          matlab.unittest suites
+  docs/           USER_GUIDE.md, RIGAKU_NOTES.md
+  xrdcApp.m       GUI entry point
+  runtests.m      test-suite entry point
 ```
 
-## Dropping features from the original
+---
 
-The following Delphi-era features are intentionally **not** ported — see `../PROJECT_PLAN.md` §2:
+## 6. Help and citation
 
-- Auto-updater (HTTP version check).
-- Gnuplot PNG export (replaced by MATLAB's native `exportgraphics`).
-- Obsolete Picker `.596` / `.1035` format (`readScan` raises `xrdc:io:notSupported`).
-- German-locale-specific `.def` / `.INI` file writing (we read them, but store as JSON).
-- Random per-scan colours (replaced with deterministic palette).
+- **Function docs:** `help xrdc.peaks.fitPeak` (or any other function) from the MATLAB prompt.
+- **Workflow detail:** `docs/USER_GUIDE.md`.
+- **Rigaku format notes:** `docs/RIGAKU_NOTES.md`.
+- **Bug reports / questions:** Shawn Agarwal (shawnagarwal0@gmail.com), Paik group.
 
-## References
-
-- Original source: `../XRD Converter Source/` (Delphi).
-- Algorithm spec: `../ALGORITHM_SPEC.md`.
-- Project plan: `../PROJECT_PLAN.md`.
-- Paper reference: Schwaigert et al. *J. Vac. Sci. Technol. A* 41, 022703 (2023).
+If you use this in a paper, please cite Schwaigert et al. *J. Vac. Sci. Technol. A* **41**, 022703 (2023) — the figure style is matched to that publication, and the original Delphi XRDC tool by Dr. Tassilo Heeg (FZJ/ISG1-IT) is the source of the underlying algorithms.
