@@ -51,6 +51,7 @@ function h = plotRsm(scans, options)
         options.AxesLim                              = []
         options.GridN                  (1,2) double  = [512 512]
         options.Colormap               (1,1) string  = "turbo"
+        options.AutoZoom               (1,1) logical = true
         options.Smooth                 (1,1) logical = false
         options.ExportPath             (1,1) string  = ""
         options.TargetAxes                           = []
@@ -111,8 +112,18 @@ function h = plotRsm(scans, options)
         Imax = pickDefault(options.Imax, max(Ig, [], 'all'));
         logContours = log(logspace(log10(Imin), log10(Imax), options.NContours));
 
-        [~, hC] = contourf(ax, Qx, Qz, log(Ig), logContours, 'LineColor', 'none');
+        % Mask values below Imin so contourf leaves them as the axes
+        % background (white/light) rather than the lowest colormap color.
+        % Mirrors the JVST A 2023 Fig 2(e) appearance where weak/noise
+        % regions appear unfilled rather than dark blue.
+        logIg = log(Ig);
+        logIg(Ig < Imin) = NaN;
+
+        [~, hC] = contourf(ax, Qx, Qz, logIg, logContours, 'LineColor', 'none');
         plotHandle = struct('contour', hC, 'image', []);
+
+        % Store for AutoZoom downstream
+        zoomQx = Qx; zoomQz = Qz; zoomIg = Ig;
     else
         % --- Fall back: scatter → interpolate → imagesc -------------
         kParAll  = vertcat(kParCells{:});
@@ -132,6 +143,10 @@ function h = plotRsm(scans, options)
         hI = imagesc(ax, kParEdge, kPerpEdge, zGrid);
         set(ax, 'YDir', 'normal');
         plotHandle = struct('contour', [], 'image', hI);
+
+        % Store for AutoZoom: use the scatter data (more faithful to
+        % the actual peak locations than the interpolated grid).
+        zoomQx = kParAll; zoomQz = kPerpAll; zoomIg = intAll;
     end
 
     % --- Colorbar with decade ticks ---------------------------------
@@ -163,7 +178,17 @@ function h = plotRsm(scans, options)
     if ~isempty(options.AxesLim) && numel(options.AxesLim) == 4
         xlim(ax, options.AxesLim(1:2));
         ylim(ax, options.AxesLim(3:4));
+    elseif options.AutoZoom
+        [xl, yl] = autoZoomBounds(zoomQx, zoomQz, zoomIg, Imin);
+        xlim(ax, xl);
+        ylim(ax, yl);
     end
+
+    % Equal data aspect ratio: 1 Å⁻¹ in Qx covers the same screen distance
+    % as 1 Å⁻¹ in Qz. This is the standard for reciprocal-space maps —
+    % preserves angles and distances in q-space and matches the
+    % JVST A 2023 Fig 2(e) appearance (tall, narrow window).
+    daspect(ax, [1 1 1]);
 
     hold(ax, 'off');
 
@@ -188,6 +213,62 @@ end
 function M = smooth3x3(M)
     kernel = ones(3) / 9;
     M = conv2(M, kernel, 'same');
+end
+
+function [xl, yl] = autoZoomBounds(Qx, Qz, Ig, Imin)
+%AUTOZOOMBOUNDS  Bounding box around the visible features of an RSM.
+%   Thresholds in log-intensity space (captures streaks and weak peaks,
+%   not just the bright core), pads by 40 %, and enforces a minimum
+%   window of 15 % of the full data span so the bbox never collapses
+%   onto a few pixels.
+    qx = Qx(:); qz = Qz(:); ig = Ig(:);
+    finite = isfinite(qx) & isfinite(qz) & isfinite(ig);
+    qx = qx(finite); qz = qz(finite); ig = ig(finite);
+
+    fullSpanX = max(qx) - min(qx);
+    fullSpanZ = max(qz) - min(qz);
+
+    % Log-intensity threshold at 30 % of the dynamic range above Imin.
+    % Cu Kα RSMs typically span ~5 decades from noise floor to substrate
+    % peak; the streak/CTR features sit at ~10²–10³ counts and must be
+    % retained, not just the 10⁵-count core.
+    logImin = log10(max(Imin, 1));
+    logMax  = log10(max(max(ig), Imin * 10));
+    logThr  = logImin + 0.30 * (logMax - logImin);
+    thr     = 10 ^ logThr;
+    mask    = ig >= thr;
+
+    if nnz(mask) < 5
+        % Fallback: centre on the brightest point, span = 20 % of data range
+        [~, idx] = max(ig);
+        cx = qx(idx); cz = qz(idx);
+        xl = [cx - fullSpanX * 0.10, cx + fullSpanX * 0.10];
+        yl = [cz - fullSpanZ * 0.10, cz + fullSpanZ * 0.10];
+        return
+    end
+
+    qxB = qx(mask); qzB = qz(mask);
+    xl = [min(qxB), max(qxB)];
+    yl = [min(qzB), max(qzB)];
+
+    % 40 % padding on each side
+    xspan = max(diff(xl), eps);
+    zspan = max(diff(yl), eps);
+    xl = xl + [-1 1] * xspan * 0.40;
+    yl = yl + [-1 1] * zspan * 0.40;
+
+    % Enforce a minimum window of 15 % of full data range so we never
+    % crop down to a sliver when only a few pixels exceed threshold.
+    minSpanX = fullSpanX * 0.15;
+    minSpanZ = fullSpanZ * 0.15;
+    if diff(xl) < minSpanX
+        cx = mean(xl);
+        xl = [cx - minSpanX/2, cx + minSpanX/2];
+    end
+    if diff(yl) < minSpanZ
+        cz = mean(yl);
+        yl = [cz - minSpanZ/2, cz + minSpanZ/2];
+    end
 end
 
 function [ticks, labels] = decadeTicks(Imin, Imax)

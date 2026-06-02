@@ -27,7 +27,7 @@ function scan = readXrdml(path)
     [~, stem, ~]      = fileparts(path);
     scan.identifier   = string(stem);
 
-    doc = xmlread(char(path));
+    doc = xrdc.io.parseXmlFile(path);
     root = doc.getDocumentElement();
 
     % handle both <xrdMeasurement> and <xrdMeasurements>/<xrdMeasurement>

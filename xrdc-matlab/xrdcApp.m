@@ -88,6 +88,11 @@ function onLoadScan(fig)
     st.params   = struct();   % reset per-scan parameters
     st.rsmScans = [];
 
+    dlg = uiprogressdlg(fig, 'Title', 'Loading scan', ...
+        'Message', sprintf('Reading %s ...', file), ...
+        'Indeterminate', 'on', 'Cancelable', 'off');
+    closeDlg = onCleanup(@() close(dlg));
+
     try
         fnLower = lower(string(file));
         if endsWith(fnLower, '.xrdml') && contains(fnLower, 'rsm')
@@ -110,6 +115,8 @@ function onLoadScan(fig)
     st.exportBtn.Enable = 'on';
     fig.UserData = st;
 
+    dlg.Message = 'Running analysis ...';
+    drawnow
     buildAnalysisPanel(fig);
     runAnalysis(fig);
 end
@@ -142,6 +149,13 @@ function onParamChange(fig, name, value)
     st = fig.UserData;
     st.params.(name) = value;
     fig.UserData = st;
+
+    dlg = uiprogressdlg(fig, 'Title', 'Updating', ...
+        'Message', 'Re-running analysis ...', ...
+        'Indeterminate', 'on', 'Cancelable', 'off');
+    closeDlg = onCleanup(@() close(dlg));
+    drawnow
+
     runAnalysis(fig);
 end
 
@@ -176,7 +190,7 @@ function buildAnalysisPanel(fig)
         case 'rsm'
             row = addDrop (g, row, 'Colormap', {'turbo','parula','jet'}, 'turbo', ...
                                                       @(v) onParamChange(fig, 'colormap', v));
-            row = addEdit (g, row, 'Imin (counts)',  '1',   @(v) onParamChange(fig, 'imin',      v));
+            row = addEdit (g, row, 'Imin (counts)',  '10',  @(v) onParamChange(fig, 'imin',      v));
             row = addEdit (g, row, 'Imax (counts)',  '1e5', @(v) onParamChange(fig, 'imax',      v));
             row = addEdit (g, row, 'Contours',       '40',  @(v) onParamChange(fig, 'nContours', v));
     end
@@ -465,7 +479,7 @@ function runRSM(fig)
         writeResults(fig, {'No RSM slices loaded.'}); return
     end
 
-    imin   = getNum(st.params, 'imin',      1);
+    imin   = getNum(st.params, 'imin',      10);
     imax   = getNum(st.params, 'imax',      1e5);
     nCont  = getNum(st.params, 'nContours', 40);
     cmap   = getStr(st.params, 'colormap',  'turbo');

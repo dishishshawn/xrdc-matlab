@@ -21,7 +21,7 @@ function scans = readXrdmlArea(path)
         path (1,1) string
     end
 
-    doc  = xmlread(char(path));
+    doc = xrdc.io.parseXmlFile(path);
     root = doc.getDocumentElement();
 
     % Top-level <usedWavelength> (shared across all slices).
