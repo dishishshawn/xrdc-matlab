@@ -8,7 +8,22 @@ Two ways to use it: a **GUI** for point-and-click work, or **scripts** when you 
 
 ## 1. Install
 
-You need **MATLAB R2022b or newer**. The Signal Processing and Optimization toolboxes are recommended; the code has fallbacks if either is missing.
+You need **MATLAB R2022b or newer**.
+
+**Recommended toolboxes** (code has fallbacks when missing, but performance and fit quality improve with them):
+
+| Toolbox                              | Used for                                                              |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| Curve Fitting Toolbox                | Peak fits, Parratt/fringe fits, smoothing splines for log-detrend     |
+| Optimization Toolbox                 | Constrained `lsqnonlin`/`fmincon` for layer parameters                |
+| Signal Processing Toolbox            | `findpeaks`, filtering, FFT-based fringe period extraction            |
+| Global Optimization Toolbox          | `MultiStart`/`ga`/`particleswarm` for multilayer XRR fits             |
+| Parallel Computing Toolbox           | `parfor` batch refinement, GPU Parratt recursion                      |
+| Statistics and Machine Learning      | Bootstrap CIs on fit params, outlier rejection on peak picks          |
+| Image Processing Toolbox             | Only if handling 2D detector images (GIWAXS/RSM area scans)           |
+| MATLAB Compiler                      | Only if distributing the GUI as a standalone executable               |
+
+Most university TAH licenses include all of these — check `ver` in MATLAB before requesting additions.
 
 Clone or copy the repo, then from MATLAB:
 
