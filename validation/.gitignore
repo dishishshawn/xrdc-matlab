@@ -1,0 +1,9 @@
+# Researcher-supplied scans and reference figures are not repo deliverables.
+# Keep the folder structure and notes tracked; ignore the actual payloads.
+tushar/input/*
+tushar/reference/*
+tushar/output/*
+
+!**/.gitkeep
+!**/README.md
+!**/RESULTS.md

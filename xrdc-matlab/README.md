@@ -121,3 +121,30 @@ xrdc-matlab/
 - **Bug reports / questions:** Shawn Agarwal (shawnagarwal0@gmail.com), Paik group.
 
 If you use this in a paper, please cite Schwaigert et al. *J. Vac. Sci. Technol. A* **41**, 022703 (2023) — the figure style is matched to that publication, and the original Delphi XRDC tool by Dr. Tassilo Heeg (FZJ/ISG1-IT) is the source of the underlying algorithms.
+
+---
+
+## 7. Standalone executable (run without a MATLAB license)
+
+The GUI can be compiled into a double-clickable **`XRDC.exe`** so collaborators who don't have a MATLAB license can run it. This needs **MATLAB Compiler** on the *build* machine only — end users install just the free MATLAB Runtime.
+
+**Build it** (from the repo root, on a machine with MATLAB Compiler + the optional toolboxes installed):
+
+```matlab
+addpath build
+buildStandalone                 % → build/standalone/XRDC.exe
+buildStandalone(Embed=true)     % also bundles the Runtime installer (larger)
+```
+
+**Run it** (end-user machine, no MATLAB license required):
+
+1. Install the **MATLAB Runtime** — the version must match the MATLAB release used to build (`mcrversion` on the build box). Free download: <https://www.mathworks.com/products/compiler/matlab-runtime.html>. This is a multi-GB, one-time install.
+2. Double-click `XRDC.exe`. The GUI opens exactly as `xrdcApp` does in MATLAB.
+
+**Notes & caveats:**
+
+- The Runtime is **license-free but not small** — going standalone removes the *license* requirement, not the disk footprint.
+- The compiler bakes in whichever code path the build machine resolves, so **build on a fully-licensed box** to get the Signal Processing / Optimization / Curve Fitting paths rather than the pure-MATLAB fallbacks.
+- The exe is **Windows-only**. For macOS/Linux, build on that platform (see the note in `build/buildStandalone.m`).
+- Each build is tied to one Runtime version; ship the matching Runtime (or use `Embed=true`).
+- The MATLAB *project* remains the source of truth — the exe is a release artifact, not a replacement.
