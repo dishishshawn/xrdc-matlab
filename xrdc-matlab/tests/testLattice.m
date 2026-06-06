@@ -163,6 +163,31 @@ function testKiessigRoundTrip(tc)
     tc.verifyEqual(res.thicknessFitNm,  t_nm, 'AbsTol', 0.01);
 end
 
+function testKiessigReportsFitMetadata(tc)
+    % New fields: rSquared near 1 for clean synthetic, fitBackend recorded,
+    % CI fields present (Curve Fitting path) or NaN (polyfit fallback).
+    lambda    = 1.5406;
+    t_nm      = 25;
+    lambda_nm = lambda / 10;
+    slope     = lambda_nm / (2 * t_nm);
+    sinTh     = 0.02 + (0:5).' * slope;
+    twoTheta  = 2 * rad2deg(asin(sinTh));
+
+    res = xrdc.lattice.thicknessFromFringes(twoTheta, lambda);
+    tc.verifyTrue(isfield(res, 'thicknessCi95Nm'));
+    tc.verifyTrue(isfield(res, 'rSquared'));
+    tc.verifyTrue(isfield(res, 'fitBackend'));
+    tc.verifyGreaterThan(res.rSquared, 0.99);
+    tc.verifyTrue(any(res.fitBackend == ["cfit", "polyfit"]));
+
+    if res.fitBackend == "cfit"
+        % CI brackets the truth and the SE is finite.
+        tc.verifyTrue(all(isfinite(res.thicknessCi95Nm)));
+        tc.verifyLessThanOrEqual(res.thicknessCi95Nm(1), t_nm);
+        tc.verifyGreaterThanOrEqual(res.thicknessCi95Nm(2), t_nm);
+    end
+end
+
 % ---------- simulatePattern ----------
 
 function testSimulateSrTiO3(tc)

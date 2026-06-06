@@ -17,6 +17,10 @@ function scans = loadAreaScan(source, options)
 %                               (default "*" = everything readScan accepts)
 %     'Lambda'   (1,1) double  — override wavelength for all scans (Å)
 %                               (default NaN = use each file's own lambda)
+%     'UseParallel' (1,1) logical — read files in parallel via parfor
+%                               (default true). Requires the Parallel
+%                               Computing Toolbox; silently falls back to
+%                               a serial for-loop otherwise.
 %
 %   Output
 %     scans : (1×N) struct array, each element as per xrdc.io.emptyScan,
@@ -27,6 +31,7 @@ function scans = loadAreaScan(source, options)
         source                  (1,:)           % string, string array, or cell
         options.Pattern         (1,1) string  = "*"
         options.Lambda          (1,1) double  = NaN
+        options.UseParallel     (1,1) logical = true
     end
 
     % Collect file paths
@@ -53,23 +58,17 @@ function scans = loadAreaScan(source, options)
 
     nFiles    = numel(filePaths);
     collected = cell(1, nFiles);
+    lambdaOv  = options.Lambda;
+    useParfor = options.UseParallel && nFiles > 1 && hasParallelToolbox();
 
-    for i = 1:nFiles
-        fp = filePaths{i};
-        [~, ~, ext] = fileparts(fp);
-        if strcmpi(ext, '.xrdml') && isMultiScanXrdml(fp)
-            % Area-scan XRDML: one file contains many ω slices.
-            fileScans = xrdc.io.readXrdmlArea(fp);
-        else
-            fileScans = xrdc.io.readScan(fp);
+    if useParfor
+        parfor i = 1:nFiles
+            collected{i} = readOneFile(filePaths{i}, lambdaOv);
         end
-        for k = 1:numel(fileScans)
-            fileScans(k).scanType = "area";
-            if ~isnan(options.Lambda)
-                fileScans(k).lambda = options.Lambda;
-            end
+    else
+        for i = 1:nFiles
+            collected{i} = readOneFile(filePaths{i}, lambdaOv);
         end
-        collected{i} = fileScans;
     end
 
     scans = [collected{:}];
@@ -77,6 +76,31 @@ function scans = loadAreaScan(source, options)
     % Sort by secondAxis ascending (handles unsorted folder listings)
     [~, idx] = sort([scans.secondAxis]);
     scans = scans(idx);
+end
+
+function fileScans = readOneFile(fp, lambdaOv)
+%READONEFILE  Dispatch a single area-scan file through the right reader.
+    [~, ~, ext] = fileparts(fp);
+    if strcmpi(ext, '.xrdml') && isMultiScanXrdml(fp)
+        fileScans = xrdc.io.readXrdmlArea(fp);
+    else
+        fileScans = xrdc.io.readScan(fp);
+    end
+    for k = 1:numel(fileScans)
+        fileScans(k).scanType = "area";
+        if ~isnan(lambdaOv)
+            fileScans(k).lambda = lambdaOv;
+        end
+    end
+end
+
+function tf = hasParallelToolbox()
+%HASPARALLELTOOLBOX  True if the Parallel Computing Toolbox is licensed.
+    persistent cached
+    if isempty(cached)
+        cached = ~isempty(ver('parallel')) && license('test', 'Distrib_Computing_Toolbox');
+    end
+    tf = cached;
 end
 
 function tf = isMultiScanXrdml(path)

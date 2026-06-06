@@ -26,10 +26,16 @@ function result = fitPeak(scan, window, options)
 %                       .center, .fwhm, .amplitude, .eta
 %                      Any missing field is auto-initialised from the
 %                      data.
-%     'Method'         "lsqcurvefit" (default) | "bruteforce"
+%     'Method'         "lsqcurvefit" (default) | "multistart" | "bruteforce"
 %                      bruteforce replicates xrdc9.pas:161+.
+%                      multistart runs lsqcurvefit from many randomised
+%                      initial guesses (Global Optimization Toolbox) and
+%                      keeps the lowest-RSS result — use for low-SNR or
+%                      blended peaks where the local fit gets stuck.
 %     'MaxIter'        (default 400) — passed to lsqcurvefit.
 %     'TolFun'         (default 1e-10)
+%     'StartPoints'    (default 20) — number of random starts used when
+%                      Method = "multistart".
 %
 %   Returns (struct)
 %     .shape           shape used
@@ -61,9 +67,10 @@ function result = fitPeak(scan, window, options)
             mustBeLessThan(options.BgFraction, 0.5)} = 0.15
         options.InitialGuess          (1,1) struct = struct()
         options.Method                (1,1) string {mustBeMember( ...
-            options.Method, ["lsqcurvefit","bruteforce"])} = "lsqcurvefit"
+            options.Method, ["lsqcurvefit","multistart","bruteforce"])} = "lsqcurvefit"
         options.MaxIter               (1,1) double {mustBeInteger, mustBePositive} = 400
         options.TolFun                (1,1) double {mustBePositive} = 1e-10
+        options.StartPoints           (1,1) double {mustBeInteger, mustBePositive} = 20
     end
 
     if window(1) >= window(2)
@@ -121,17 +128,29 @@ function result = fitPeak(scan, window, options)
     if ~isfield(guess, 'eta'),       guess.eta       = 0.5;     end
 
     % ---- Dispatch ----
-    if options.Method == "lsqcurvefit"
-        % Check if Optimization Toolbox is available
-        if isempty(which('lsqcurvefit'))
-            warning('xrdc:peaks:noOptToolbox', ...
-                'lsqcurvefit not available (Optimization Toolbox missing). Falling back to bruteforce.');
+    switch options.Method
+        case "lsqcurvefit"
+            if isempty(which('lsqcurvefit'))
+                warning('xrdc:peaks:noOptToolbox', ...
+                    'lsqcurvefit not available (Optimization Toolbox missing). Falling back to bruteforce.');
+                result = fitBruteforce(xi, yi, guess, options, bga0, bgb0);
+            else
+                result = fitLsq(xi, yi, guess, options, bga0, bgb0);
+            end
+        case "multistart"
+            if isempty(which('lsqcurvefit'))
+                warning('xrdc:peaks:noOptToolbox', ...
+                    'lsqcurvefit not available. Falling back to bruteforce.');
+                result = fitBruteforce(xi, yi, guess, options, bga0, bgb0);
+            elseif isempty(which('MultiStart'))
+                warning('xrdc:peaks:noGlobalOpt', ...
+                    'MultiStart not available (Global Optimization Toolbox missing). Falling back to single-start lsqcurvefit.');
+                result = fitLsq(xi, yi, guess, options, bga0, bgb0);
+            else
+                result = fitMultiStart(xi, yi, guess, options, bga0, bgb0);
+            end
+        case "bruteforce"
             result = fitBruteforce(xi, yi, guess, options, bga0, bgb0);
-        else
-            result = fitLsq(xi, yi, guess, options, bga0, bgb0);
-        end
-    else
-        result = fitBruteforce(xi, yi, guess, options, bga0, bgb0);
     end
 
     result.dataX      = xi;
@@ -181,6 +200,64 @@ function r = fitLsq(xi, yi, guess, options, bga0, bgb0)
         seP  = sqrt(max(diag(covP), 0));
     else
         seP  = nan(size(p));
+    end
+
+    r = struct();
+    r.twoTheta  = center;
+    r.fwhm      = fwhm;
+    r.amplitude = amp;
+    r.eta       = eta;
+    r.bga       = bga;
+    r.bgb       = bgb;
+    r.paramSE   = unpackSE(seP, meta);
+end
+
+function r = fitMultiStart(xi, yi, guess, options, bga0, bgb0)
+    % Same model as fitLsq but launched from many randomised initial
+    % guesses via MultiStart. Returns the run with the lowest residual.
+    shape = options.Shape;
+    useBg = options.Background == "linear";
+    [p0, lb, ub, meta] = buildParamVector(guess, bga0, bgb0, shape, useBg, xi);
+
+    modelFn  = @(p, x) evalPacked(p, x, shape, meta);
+    objFn    = @(p)    sum((modelFn(p, xi) - yi).^2);
+
+    optsLocal = optimoptions('fmincon', ...
+        'Display', 'off', ...
+        'MaxIterations', options.MaxIter, ...
+        'OptimalityTolerance', options.TolFun, ...
+        'StepTolerance', 1e-12);
+    problem = createOptimProblem('fmincon', ...
+        'objective', objFn, ...
+        'x0',        p0, ...
+        'lb',        lb, ...
+        'ub',        ub, ...
+        'options',   optsLocal);
+
+    ms = MultiStart('Display', 'off', 'UseParallel', false);
+    [pBest, ~] = run(ms, problem, options.StartPoints);
+
+    % Re-run a single lsqcurvefit from pBest to recover the Jacobian and
+    % its parameter standard errors (MultiStart's fmincon path doesn't
+    % surface a usable J for SE computation).
+    optsLsq = optimoptions('lsqcurvefit', ...
+        'Display', 'off', ...
+        'MaxIterations', options.MaxIter, ...
+        'FunctionTolerance', options.TolFun, ...
+        'StepTolerance', 1e-12);
+    [p, resnorm, ~, ~, ~, ~, J] = ...
+        lsqcurvefit(modelFn, pBest, xi, yi, lb, ub, optsLsq);
+
+    [center, fwhm, amp, eta, bga, bgb] = unpack(p, meta, bga0, bgb0);
+
+    n = numel(yi); k = numel(p);
+    if n > k
+        sigma2 = resnorm / (n - k);
+        JtJ    = full(J' * J);
+        covP   = sigma2 * pinv(JtJ);
+        seP    = sqrt(max(diag(covP), 0));
+    else
+        seP    = nan(size(p));
     end
 
     r = struct();

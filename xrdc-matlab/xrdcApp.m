@@ -350,86 +350,69 @@ function runXRR(fig)
     stylePubAxes(ax, '2\theta (°)', 'Counts', 'XRR');
     xlim(ax, [0, min(5, scan.twoTheta(end))]);
 
-    % Mirrors demoXRR: detect on log10(counts) with the slow envelope removed
-    % so each fringe contributes the same ~few-percent ripple regardless of
-    % absolute height. Critical edge auto-detected from steepest descent of
-    % log(counts) when the user leaves "2θ min" at 0.
+    % Full XRR pipeline (critical-edge → polynomial detrend → FFT period
+    % → fringe peak detection → sinθ linear fit) lives in
+    % xrdc.xrr.analyzeFringes. See that file for the algorithm; this
+    % wrapper just exposes the GUI parameter panel.
     xrrMin  = getNum(st.params, 'xrrMin',   0);     % 0 = auto critical edge
     xrrMax  = getNum(st.params, 'xrrMax',   5.0);
     promPct = getNum(st.params, 'xrrProm',  1.5);   % % ripple on log decade
 
-    tt   = scan.twoTheta(:);
-    ylog = log10(max(double(scan.counts(:)), 1));
+    args = {'UpperBound', xrrMax, 'MinProminence', promPct / 100};
+    if xrrMin > 0
+        args = [args, {'LowerBound', xrrMin}];
+    end
+
+    try
+        res = xrdc.xrr.analyzeFringes(scan, args{:});
+    catch ME
+        writeResults(fig, {sprintf('XRR analysis failed: %s', ME.message)});
+        return
+    end
 
     if xrrMin > 0
-        winLo  = xrrMin;
-        edgeMsg = sprintf('Lower bound (manual) = %.3f°', winLo);
+        edgeMsg = sprintf('Lower bound (manual) = %.3f°', res.lowerBound);
     else
-        dy = gradient(ylog, tt);
-        edgeRegion = tt < 1.5;
-        dyMasked = dy;
-        dyMasked(~edgeRegion) = +Inf;
-        [minSlope, iEdge] = min(dyMasked);
-        if ~isfinite(minSlope) || minSlope >= 0
-            theta_c = 0.4;
-        else
-            theta_c = tt(iEdge);
-        end
-        winLo  = theta_c + 0.05;
-        edgeMsg = sprintf('Critical edge (auto) ≈ %.3f° → start at %.3f°', theta_c, winLo);
+        edgeMsg = sprintf('Critical edge (auto) ≈ %.3f° → start at %.3f°', ...
+            res.twoThetaC, res.lowerBound);
     end
-    winHi = min(xrrMax, tt(end));
+    lines = {edgeMsg, ...
+        sprintf('Fringe search range: [%.3f°, %.3f°]', ...
+            res.lowerBound, res.upperBound), ...
+        sprintf('Fringes detected: %d', res.nFringesDetected)};
 
-    mask = tt > winLo & tt < winHi;
-    lines = {edgeMsg, sprintf('Fringe search range: [%.3f°, %.3f°]', winLo, winHi)};
-    if nnz(mask) < 5
-        lines{end+1} = '— not enough points in range';
-        writeResults(fig, lines); return
+    if ~isnan(res.thicknessFftNm)
+        lines{end+1} = sprintf('FFT period: %.3f° (SNR %.1f)', ...
+            res.fringePeriodDeg, res.fringeSnr);
     end
 
-    xseg = tt(mask);
-    yseg = ylog(mask);
-
-    step    = median(diff(xseg));
-    spanPts = max(5, round(0.4 / max(step, eps)));
-    envelope = movmean(yseg, spanPts);
-    ydet     = yseg - envelope;
-
-    subScan = scan;
-    subScan.twoTheta = xseg;
-    subScan.counts   = ydet;
-
-    pk = xrdc.peaks.findPeaks(subScan, ...
-        'MinProminence', promPct / 100, ...
-        'MinSeparation', 0.05);
-
-    if ~isempty(pk)
-        for k = 1:numel(pk)
-            [~, j] = min(abs(scan.twoTheta - pk(k).twoTheta));
-            pk(k).counts = scan.counts(j);
-            pk(k).index  = j;
-        end
-    end
-    lines{end+1} = sprintf('Fringes detected: %d', numel(pk));
-
-    if numel(pk) >= 2
-        ttPk  = [pk.twoTheta];
-        thick = xrdc.lattice.thicknessFromFringes(ttPk(:), scan.lambda);
-        t_nm  = thick.thicknessFitNm;
-
+    if res.nFringesDetected >= 3
         hold(ax, 'on');
-        plot(ax, [pk.twoTheta], [pk.counts], 'v', ...
+        plot(ax, [res.peaks.twoTheta], [res.peaks.counts], 'v', ...
             'MarkerFaceColor', [0.85 0.2 0.2], 'MarkerEdgeColor', 'k', 'MarkerSize', 7);
         hold(ax, 'off');
-        title(ax, sprintf('XRR — d = %.1f ± %.1f nm', t_nm, thick.thicknessFitSeNm));
+        title(ax, sprintf('XRR — d = %.1f ± %.1f nm', ...
+            res.thicknessQuadNm, res.thicknessQuadSeNm));
 
         lines = [lines, { ...
             '', ...
-            sprintf('Thickness  = %.2f nm', t_nm), ...
-            sprintf('Uncertainty = ± %.2f nm', thick.thicknessFitSeNm), ...
-            sprintf('λ          = %.4f Å', scan.lambda)}];
+            sprintf('Thickness (Kiessig quad) = %.2f ± %.2f nm', ...
+                res.thicknessQuadNm, res.thicknessQuadSeNm), ...
+            sprintf('Thickness (linear sinθ)  = %.2f ± %.2f nm', ...
+                res.thicknessFitNm, res.thicknessFitSeNm), ...
+            sprintf('Thickness (FFT)          = %.2f nm', res.thicknessFftNm), ...
+            sprintf('Recovered θ_c            = %.3f° (TER plateau %.3f°)', ...
+                res.twoThetaCRecovered, res.twoThetaC), ...
+            sprintf('λ                        = %.4f Å', scan.lambda)}];
+    elseif ~isnan(res.thicknessFftNm)
+        title(ax, sprintf('XRR — d ≈ %.1f nm (FFT only)', res.thicknessFftNm));
+        lines = [lines, { ...
+            '', ...
+            sprintf('Thickness (FFT) = %.2f nm', res.thicknessFftNm), ...
+            '— need ≥3 detected fringes for the quadratic Kiessig fit', ...
+            sprintf('λ               = %.4f Å', scan.lambda)}];
     else
-        lines{end+1} = '— need ≥2 fringes for thickness';
+        lines{end+1} = '— could not determine thickness';
     end
     writeResults(fig, lines);
 end

@@ -213,6 +213,23 @@ function testFitPeakReportsFiniteSE(tc)
     tc.verifyTrue(isfinite(r.paramSE.amplitude) && r.paramSE.amplitude > 0);
 end
 
+function testFitPeakMultiStartRecovery(tc)
+    if isempty(which('lsqcurvefit'))
+        tc.assumeFail('lsqcurvefit not available (Optimization Toolbox).');
+    end
+    if isempty(which('MultiStart'))
+        tc.assumeFail('MultiStart not available (Global Optimization Toolbox).');
+    end
+    rng(7);
+    x = (28:0.01:32).';
+    scan = syntheticScan(x, 30, 0.4, 12000, "lorentz", 200, 30);
+    r = xrdc.peaks.fitPeak(scan, [28, 32], ...
+        'Shape', 'lorentz', 'Method', 'multistart', 'StartPoints', 8);
+    tc.verifyEqual(r.twoTheta, 30,   'AbsTol', 0.01);
+    tc.verifyEqual(r.fwhm,     0.4,  'RelTol', 0.1);
+    tc.verifyGreaterThan(r.rSquared, 0.95);
+end
+
 function testFitPeakBadWindow(tc)
     scan = xrdc.io.emptyScan();
     scan.twoTheta = (20:0.02:40).';

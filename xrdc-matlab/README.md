@@ -10,18 +10,18 @@ Two ways to use it: a **GUI** for point-and-click work, or **scripts** when you 
 
 You need **MATLAB R2022b or newer**.
 
-**Recommended toolboxes** (code has fallbacks when missing, but performance and fit quality improve with them):
+**Recommended toolboxes.** Every code path has a pure-MATLAB fallback, so the toolkit still runs without any of these. Installing them activates the better path automatically.
 
-| Toolbox                              | Used for                                                              |
-| ------------------------------------ | --------------------------------------------------------------------- |
-| Curve Fitting Toolbox                | Peak fits, Parratt/fringe fits, smoothing splines for log-detrend     |
-| Optimization Toolbox                 | Constrained `lsqnonlin`/`fmincon` for layer parameters                |
-| Signal Processing Toolbox            | `findpeaks`, filtering, FFT-based fringe period extraction            |
-| Global Optimization Toolbox          | `MultiStart`/`ga`/`particleswarm` for multilayer XRR fits             |
-| Parallel Computing Toolbox           | `parfor` batch refinement, GPU Parratt recursion                      |
-| Statistics and Machine Learning      | Bootstrap CIs on fit params, outlier rejection on peak picks          |
-| Image Processing Toolbox             | Only if handling 2D detector images (GIWAXS/RSM area scans)           |
-| MATLAB Compiler                      | Only if distributing the GUI as a standalone executable               |
+| Toolbox                              | Activates                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Signal Processing Toolbox            | `findpeaks` (XRD/Kiessig peak detection), `sgolay`/`sgolayfilt` derivatives, XRR log-envelope   |
+| Optimization Toolbox                 | `lsqcurvefit` peak fits with Jacobian-based parameter SEs                                       |
+| Curve Fitting Toolbox                | `csaps` smoothing-spline option in `smoothCounts` and `subtractBackground`; `fit` + `confint` for Kiessig thickness CIs |
+| Global Optimization Toolbox          | `Method="multistart"` in `fitPeak` — robust against poor initial guesses                        |
+| Parallel Computing Toolbox           | `parfor` over files in `loadAreaScan` (RSM I/O speed-up)                                        |
+| Statistics and Machine Learning      | Bootstrap CIs on fit parameters, outlier rejection on peak picks (planned)                      |
+| Image Processing Toolbox             | Only needed for 2D detector images (GIWAXS/RSM area scans) — not yet used                       |
+| MATLAB Compiler                      | Only needed if distributing the GUI as a standalone executable                                  |
 
 Most university TAH licenses include all of these — check `ver` in MATLAB before requesting additions.
 

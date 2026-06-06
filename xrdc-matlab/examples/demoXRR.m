@@ -1,5 +1,6 @@
 %% Demo: XRR (specular reflectivity) scan with Kiessig-fringe thickness.
-%  Fringe-index → polyfit of sin(θ_n) vs n → slope → film thickness.
+%  Pipeline lives in +xrdc/+xrr/analyzeFringes.m. See that file for the
+%  edge-detection / detrend / FFT / fringe-fit details.
 
 addpath(fileparts(fileparts(mfilename('fullpath'))));
 
@@ -18,84 +19,38 @@ scan = xrdc.io.readScan(fullfile(dataDir, fname));
 fprintf('Loaded %s: %d points, 2θ ∈ [%.3f, %.3f]°\n', ...
     scan.identifier, numel(scan.twoTheta), scan.twoTheta(1), scan.twoTheta(end));
 
-%% Find Kiessig fringes (small 2θ, after critical edge)
-% XRR intensity drops 5–6 decades over the fringe region, so any prominence
-% threshold tied to max(counts) only ever sees the first 1–2 fringes near
-% the critical edge. Detect on log10(counts) with the slow envelope removed,
-% so each fringe contributes the same ~few-percent ripple regardless of
-% absolute height. Critical-edge position is auto-found from the steepest
-% descent of log(counts) below 1.5° — removes the need to hand-tune the
-% lower bound per sample.
-tt    = scan.twoTheta(:);
-ylog  = log10(max(double(scan.counts(:)), 1));
+%% Run the full XRR fringe pipeline
+res = xrdc.xrr.analyzeFringes(scan);
 
-dy = gradient(ylog, tt);
-edgeRegion = tt < 1.5;
-dyMasked = dy;
-dyMasked(~edgeRegion) = +Inf;     % force argmin into the edge region
-[minSlope, iEdge] = min(dyMasked);
-if ~isfinite(minSlope) || minSlope >= 0
-    theta_c = 0.4;                % fallback if no clear edge below 1.5°
-else
-    theta_c = tt(iEdge);
-end
-
-winLo = theta_c + 0.05;
-winHi = min(5.0, tt(end));
-mask  = tt > winLo & tt < winHi;
-xseg  = tt(mask);
-yseg  = ylog(mask);
-
-% Detrend with a moving-average envelope. Span ~0.4° is wide enough to be
-% smooth across several fringes for typical 5–50 nm films, narrow enough to
-% follow the steep post-edge decay.
-step    = median(diff(xseg));
-spanPts = max(5, round(0.4 / max(step, eps)));
-envelope = movmean(yseg, spanPts);
-ydet     = yseg - envelope;
-
-subScan = scan;
-subScan.twoTheta = xseg;
-subScan.counts   = ydet;     % detrended log signal, dimensionless
-
-pk = xrdc.peaks.findPeaks(subScan, ...
-    'MinProminence', 0.015, ...   % ~3.5% intensity ripple in log units
-    'MinSeparation', 0.05);
-
-% Re-attach real counts at each fringe so plotScan markers land on the
-% physical curve rather than on the detrended residual.
-if ~isempty(pk)
-    for k = 1:numel(pk)
-        [~, j] = min(abs(scan.twoTheta - pk(k).twoTheta));
-        pk(k).counts = scan.counts(j);
-        pk(k).index  = j;
-    end
-end
 fprintf('Critical edge ≈ %.3f°. Found %d Kiessig fringes in [%.2f°, %.2f°].\n', ...
-    theta_c, numel(pk), winLo, winHi);
+    res.twoThetaC, res.nFringesDetected, res.lowerBound, res.upperBound);
 
-%% Thickness from fringe periodicity
-if numel(pk) < 2
-    warning('Too few fringes (need ≥2) — skipping thickness estimate.');
-    t_nm = NaN;
-    thick = struct();
+if isnan(res.thicknessFftNm)
+    warning('Could not estimate a fringe period — check the scan range.');
+elseif res.nFringesDetected < 3
+    warning('Only %d fringe(s) detected — reporting FFT thickness only.', ...
+        res.nFringesDetected);
+    fprintf('FFT thickness  d ≈ %.2f nm (period = %.3f° in 2θ)\n', ...
+        res.thicknessFftNm, res.fringePeriodDeg);
 else
-    if numel(pk) < 3
-        warning('Only %d fringe(s) — thickness estimate will be noisy.', numel(pk));
-    end
-    ttPk   = [pk.twoTheta];     % fringe 2θ in degrees (thicknessFromFringes wants 2θ)
-    thick  = xrdc.lattice.thicknessFromFringes(ttPk(:), scan.lambda);
-    t_nm   = thick.thicknessFitNm;
-    fprintf('Film thickness  d = %.2f ± %.2f nm (fit of %d fringes, λ=%.4f Å)\n', ...
-        t_nm, thick.thicknessFitSeNm, numel(pk), scan.lambda);
+    fprintf(['Film thickness  d = %.2f ± %.2f nm  (quadratic Kiessig, ' ...
+             '%d fringes, λ=%.4f Å)\n'], ...
+        res.thicknessQuadNm, res.thicknessQuadSeNm, res.nFringesDetected, scan.lambda);
+    fprintf(['  cross-checks:  linear sinθ = %.2f nm,  FFT = %.2f nm  ' ...
+             '(fringe period %.3f°, SNR %.1f)\n'], ...
+        res.thicknessFitNm, res.thicknessFftNm, res.fringePeriodDeg, res.fringeSnr);
+    fprintf('  recovered θ_c   = %.3f° (TER plateau peak was at %.3f°)\n', ...
+        res.twoThetaCRecovered, res.twoThetaC);
 end
 
 %% Plot
-scan.peaks = pk;
-if isnan(t_nm)
+scan.peaks = res.peaks;
+if isnan(res.thicknessNm)
     title_str = "XRR — insufficient fringe visibility";
+elseif isnan(res.thicknessQuadNm)
+    title_str = sprintf("XRR — d ≈ %.1f nm (FFT only)", res.thicknessFftNm);
 else
-    title_str = sprintf("XRR — d = %.1f nm", t_nm);
+    title_str = sprintf("XRR — d = %.1f nm", res.thicknessQuadNm);
 end
 h = xrdc.plot.plotScan(scan, ...
     'Title',     title_str, ...

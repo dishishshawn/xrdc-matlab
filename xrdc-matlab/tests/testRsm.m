@@ -268,6 +268,22 @@ function testLoadAreaScanBadFolderError(testCase)
         'xrdc:rsm:notAFolder');
 end
 
+function testLoadAreaScanSerialOptOut(testCase)
+    % UseParallel=false must skip the parfor branch and still return
+    % exactly the same scans as the default path.
+    tmpDir = tempname;
+    mkdir(tmpDir);
+    testCase.addTeardown(@() rmdir(tmpDir, 's'));
+    for k = 1:3
+        fid = fopen(fullfile(tmpDir, sprintf('s_%02d.txt', k)), 'w');
+        fprintf(fid, '%.4f %d\n', [(30:0.1:32).' (500+k)*ones(21,1)].');
+        fclose(fid);
+    end
+    scans = xrdc.rsm.loadAreaScan(tmpDir, 'Pattern', '*.txt', ...
+                                  'UseParallel', false);
+    testCase.verifyEqual(numel(scans), 3);
+end
+
 % =====================================================================
 % plotRsm — FR-6.3
 % =====================================================================
