@@ -10,8 +10,8 @@ This file gives future Claude / AI sessions enough context to continue the port 
     1. Read Rigaku `.raw` natively — the original can't.
     2. Cleaner data handling than the Delphi version.
     3. Consistent publication-ready figure formatting.
-- Everything algorithmic is documented in `../ALGORITHM_SPEC.md` with line references to the Delphi source. **Read the spec before changing any numerical routine.**
-- Phase-by-phase roadmap lives in `../PROJECT_PLAN.md`. Respect the phasing — don't start RSM work before the I/O and peak-detection phases are solid.
+- Numerical-method assumptions and the deliberate divergences from the Delphi source (with `+xrdc/...:line` and `xrdcN.pas` references) live in `docs/SCIENTIFIC_ASSUMPTIONS.md`, with the user-facing divergence list in `docs/USER_GUIDE.md` §7. **Read these before changing any numerical routine.** (The former `../ALGORITHM_SPEC.md` / `../PROJECT_PLAN.md` were removed in commit 453dfd5; some docs still cite `ALGORITHM_SPEC §x` internally — treat those as pointers into SCIENTIFIC_ASSUMPTIONS.)
+- The port is feature-complete (Phases 1–6); current status, what's done/gated/stubbed, lives in `docs/FEATURES.md`. Phasing note still applies in spirit: RSM depends on solid I/O and peak detection.
 
 ## Code conventions
 
@@ -49,18 +49,18 @@ This file gives future Claude / AI sessions enough context to continue the port 
 
 ## Porting rules from the Delphi source
 
-1. **Match the algorithm, not the implementation.** The Delphi code is often Pascal-constrained (no numerical libraries); MATLAB has better primitives. Don't port brute-force grid searches when `lsqcurvefit` or `findpeaks` is the obvious modern answer — but leave a `'legacy'` flag option on peak detection / fitting for reproducing old analyses bit-for-bit (§1.2 of PROJECT_PLAN).
-2. **Preserve known asymmetries.** The RSM transform has a deliberate θ-asymmetry documented in ALGORITHM_SPEC §7.1. Don't "fix" that.
+1. **Match the algorithm, not the implementation.** The Delphi code is often Pascal-constrained (no numerical libraries); MATLAB has better primitives. Don't port brute-force grid searches when `lsqcurvefit` or `findpeaks` is the obvious modern answer — but leave a `'legacy'` flag option on peak detection / fitting for reproducing old analyses bit-for-bit (the `'bruteforce'`/legacy paths exist in `fitPeak`/`findPeaksLegacy`).
+2. **Preserve known asymmetries.** The RSM transform has a deliberate θ-asymmetry (`θ_raw` builds ω; corrected `θ` feeds the k formulas) — see `docs/USER_GUIDE.md` §7 and `docs/SCIENTIFIC_ASSUMPTIONS.md`. Don't "fix" that.
 3. **German-locale tolerance on input only.** We read files that use `,` as decimal separator; we never write them.
 4. **Drop the auto-updater, the Picker format, and gnuplot.**
 
 ## What each cowork session should do first
 
-1. Re-read this file and the algorithm spec.
+1. Re-read this file and `docs/SCIENTIFIC_ASSUMPTIONS.md` (numerical-method assumptions).
 2. Run `runtests` to confirm the suite is green on the current state.
-3. Check `../PROJECT_PLAN.md` to see which phase is in flight.
+3. Check `docs/FEATURES.md` for current status (done / gated / wanted / stubbed).
 4. Check outstanding tasks with `TaskList` if using the task tools.
-5. If starting Rigaku I/O: confirm sample files are available in `../test-data/` (or equivalent) — if not, the phase is still blocked.
+5. If starting Rigaku binary I/O (`.raw`/`.ras`): those readers are still stubbed pending sample files in `../data/` — if absent, that work is blocked.
 
 ## Don't
 

@@ -9,6 +9,7 @@ _Last reconciled: 2026-06-05._
 - ✅ PANalytical `.xrdml`, single scan — `readXrdml`
 - ✅ PANalytical `.xrdml`, multi-scan / area (RSM) — `readXrdmlArea`
 - ✅ Rigaku SmartLab `.txt`, headered **and** headerless — `readRigakuTxt` / `readTextScan`
+- ✅ Rigaku SmartLab Studio II `.hgx` (GlobalFit, HDF5) — `readRigakuHgx` (curve verified bit-identical to the `.txt` twin)
 - ✅ Philips `.x00` — `readPhilipsX00`
 - ✅ Plain two-column text — `readTextScan`
 - ✅ Auto-detect format from first 512 bytes — `readScan`
@@ -16,7 +17,8 @@ _Last reconciled: 2026-06-05._
 - ✅ Common scan struct shape — `emptyScan`
 - ❌ Rigaku binary `.raw` — `readRigakuRaw` raises `xrdc:io:notImplemented` (awaiting sample files)
 - ❌ Rigaku ASCII `.ras` — `readRigakuRas` raises `xrdc:io:notImplemented` (awaiting sample files)
-- ⬜ Rigaku `.hgx` (present in the lab data dump; no reader yet — confirm if needed)
+- ✅ Rigaku `.hgx` (HDF5) — reader added and tested; layer-model parameters under
+      `/current/parameters` not yet parsed (curve + simulated fit are)
 
 ## Scan types & analyses
 - ✅ θ-2θ (`twoThetaOmega`) — peaks + substrate overlay **[validated vs Tushar S25]**
@@ -33,8 +35,10 @@ _Last reconciled: 2026-06-05._
 - ✅ Jacobian-based parameter standard errors (Optimization Toolbox path)
 - ✅ Multistart robust fitting (Global Optimization path)
 - ✅ Manual peak adjustment — `adjustPeaks`
-- ⬜ Default/peer-expected RC fit shape: confirm Gaussian vs Lorentzian (validation found
-      Tushar uses Gaussian; app defaults to Lorentzian → ~16% FWHM gap)
+- ✅ GUI rocking-curve panel now reports FWHM under the **other** fit shapes as a cross-check
+      (surfaces the ~16% Gaussian-vs-Lorentzian gap instead of hiding it behind the default)
+- ⬜ Decision still open: should the RC *default* be Gaussian? (Tushar reports Gaussian; app
+      default is still Lorentzian — left as a deliberate decision, not changed silently)
 
 ## Lattice / crystallography (`+xrdc/+lattice`)
 - ✅ d-spacing from (hkl) per crystal system — `dSpacingFromHKL`
@@ -78,7 +82,9 @@ _Last reconciled: 2026-06-05._
 ## Validation against external references
 - ✅ θ-2θ — Tushar S25 SRO/STO(100): peak positions match to <0.03°
 - ✅ Rocking-curve FWHM — Tushar S25: matches to ~1% with Gaussian fit
-- ⬜ XRR / Kiessig thickness — need Tushar's XRR `.txt` (only his figure is on hand)
+- ✅ XRR / Kiessig thickness — S25 XRR (found in `data/`) → 40.30 ± 0.44 nm (21 fringes);
+      full `data/` sweep (37 files, 0 crashes) in `validation/DATA_SWEEP.md`
+- ⬜ XRR — still worth confirming the 40.3 nm against Tushar's reported value
 - ⬜ RSM — no external reference checked yet
 
 ## Planned / wanted (from README, not started)
