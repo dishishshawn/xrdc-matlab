@@ -299,6 +299,21 @@ function runRockingCurve(fig)
 
     fit = xrdc.peaks.fitPeak(scan, window, 'Shape', string(shape));
 
+    % Cross-check FWHM under the other profile shapes. The shape choice can
+    % shift FWHM by ~15-20% (e.g. a Gaussian fit reads wider than a Lorentzian
+    % on the same curve), so surface it rather than let it hide behind the
+    % default — lets the user reconcile against externally-reported values.
+    xcheck = strings(0, 1);
+    for s = ["lorentz", "gauss", "pseudoVoigt"]
+        if s == string(shape), continue, end
+        try
+            f2 = xrdc.peaks.fitPeak(scan, window, 'Shape', s);
+            xcheck(end+1, 1) = sprintf('%s %.1f″', s, f2.fwhm * 3600); %#ok<AGROW>
+        catch
+            xcheck(end+1, 1) = sprintf('%s n/a', s); %#ok<AGROW>
+        end
+    end
+
     hold(ax, 'on');
     plot(ax, fit.xFit, max(fit.yFit, 1), '--', ...
         'Color', [0.85 0.2 0.2], 'LineWidth', 1.8);
@@ -313,6 +328,7 @@ function runRockingCurve(fig)
         sprintf('Amplitude   = %.2g counts', fit.amplitude), ...
         sprintf('R²          = %.4f', fit.rSquared), ...
         sprintf('Shape       = %s', fit.shape), ...
+        sprintf('Other shapes: %s', strjoin(cellstr(xcheck), '   ')), ...
         '', ...
         sprintf('Fit window: ±%.3f° around peak', w)});
 end
