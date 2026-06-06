@@ -20,6 +20,14 @@ function scan = readScan(path)
         error('xrdc:io:notFound', 'File not found: %s', path);
     end
 
+    % .hgx is a binary HDF5 container (Rigaku GlobalFit) — route by extension
+    % before the text peek, which would otherwise misread the binary header.
+    [~, ~, ext] = fileparts(path);
+    if lower(string(ext)) == ".hgx"
+        scan = xrdc.io.readRigakuHgx(path);
+        return
+    end
+
     % Peek at the first ~200 bytes to sniff format
     fid = fopen(path, 'r');
     cleanup = onCleanup(@() fclose(fid));

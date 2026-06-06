@@ -157,3 +157,28 @@ Steps if another group drops a different Rigaku variant:
 4. Add a `testReadRigakuTxt<LabName>` integration test gated on file existence.
 
 Do not add a new reader function unless the format is fundamentally different. `.ras` (key=value + `*RAS_INT_START`) and binary `.raw` (magic bytes `RAW1.0x`) are separate parsers because the framing differs; `.txt` variants from different instruments should stay in one reader.
+
+## `.hgx` — SmartLab Studio II GlobalFit project (HDF5)
+
+`.hgx` files written by Rigaku **SmartLab Studio II** (GlobalFit / reflectivity analysis)
+are **HDF5 containers** — magic bytes `89 48 44 46 0d 0a 1a 0a` (`‰HDF\r\n␚\n`). MATLAB
+reads them natively (`h5info`, `h5read`); no third-party library needed.
+
+Reader: `+xrdc/+io/readRigakuHgx.m`, dispatched by extension in `readScan` (binary, so it
+is routed *before* the text sniff). Layout (fixed path):
+
+| HDF5 path | Meaning |
+| --------- | ------- |
+| `/current/data/datasets/0/x_raw` | angle (°) — **the same quantity as column 1 of the `.txt` export** |
+| `/current/data/datasets/0/y_raw` | intensity (cps) |
+| `/current/data/datasets/0/y_sim` | GlobalFit simulated curve (optional; surfaced in `metadata.ySim`) |
+| `/current/parameters/...` | fitted layer-model parameters (not yet parsed) |
+| `.../meta/.../wavelength/magnitude` | wavelength (stored `H5T_OPAQUE`; not parsed — we default Cu Kα 1.5406 Å) |
+
+`x_raw`/`y_raw` were verified **bit-identical** to the matching `.txt` export (S10, 338 pts,
+max |Δx| = 0), so the reader yields the same scan as the `.txt` twin — equality locked in by
+`testReadRigakuHgxMatchesTxtTwin`. Scan type is inferred from the filename, same as
+`readRigakuTxt`.
+
+Future work if needed: parse the GlobalFit **layer model** under `/current/parameters`
+(thickness/density/roughness per layer) and the OPAQUE-typed wavelength/sample metadata.

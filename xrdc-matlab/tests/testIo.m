@@ -194,3 +194,59 @@ function testReadRigakuTxtRealFiles(tc)
             sprintf('Non-finite counts in %s', files(i).name));
     end
 end
+
+function testReadRigakuHgxSynthetic(tc)
+    % Round-trip a synthetic .hgx (HDF5) — no real lab files required.
+    tmp = [tempname '.hgx'];
+    cleanup = onCleanup(@() delete(tmp)); %#ok<NASGU>
+    x = (0:0.005:1.5).';
+    y = 1e6 * exp(-x * 3) + 50;            % decaying XRR-like curve
+    base = '/current/data/datasets/0';
+    h5create(tmp, [base '/x_raw'], [numel(x) 1]);
+    h5write (tmp, [base '/x_raw'], x);
+    h5create(tmp, [base '/y_raw'], [numel(y) 1]);
+    h5write (tmp, [base '/y_raw'], y);
+
+    scan = xrdc.io.readRigakuHgx(tmp);
+    tc.verifyEqual(scan.sourceFormat, "rigakuHgx");
+    tc.verifyEqual(scan.twoTheta, x, 'AbsTol', 1e-9);
+    tc.verifyEqual(scan.counts,   y, 'AbsTol', 1e-6);
+    tc.verifyEqual(scan.scanType, "twoThetaOmega");   % default for non-RC/phi
+    tc.verifyEqual(scan.lambda,   1.5406, 'AbsTol', 1e-9);
+    tc.verifyEqual(scan.metadata.nPoints, numel(x));
+
+    % Dispatcher must route .hgx by extension (binary HDF5, not text-sniffed).
+    scan2 = xrdc.io.readScan(tmp);
+    tc.verifyEqual(scan2.sourceFormat, "rigakuHgx");
+    tc.verifyEqual(scan2.counts, y, 'AbsTol', 1e-6);
+end
+
+function testReadRigakuHgxRockingCurveInference(tc)
+    % Filename drives scanType even for the HDF5 container.
+    tmp = fullfile(tempdir, 'synthetic film RC.hgx');
+    if isfile(tmp), delete(tmp); end
+    cleanup = onCleanup(@() delete(tmp)); %#ok<NASGU>
+    x = (-0.5:0.001:0.5).';
+    y = 1e5 ./ (1 + (x / 0.02).^2);
+    base = '/current/data/datasets/0';
+    h5create(tmp, [base '/x_raw'], [numel(x) 1]); h5write(tmp, [base '/x_raw'], x);
+    h5create(tmp, [base '/y_raw'], [numel(y) 1]); h5write(tmp, [base '/y_raw'], y);
+    scan = xrdc.io.readRigakuHgx(tmp);
+    tc.verifyEqual(scan.scanType, "omega");
+end
+
+function testReadRigakuHgxMatchesTxtTwin(tc)
+    % Cross-check: the .hgx curve must equal its .txt twin (verified bit-
+    % identical). Gated on the lab data drop, so it skips elsewhere.
+    dataDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), '..', 'data');
+    assumeTrue(tc, isfolder(dataDir), 'data/ folder not present; skipping .hgx twin test.');
+    hgx = fullfile(dataDir, 'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_XRR_upto 1_34 deg_04162026.hgx');
+    txt = fullfile(dataDir, 'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_XRR_upto 1.34 deg 04162026.txt');
+    assumeTrue(tc, isfile(hgx) && isfile(txt), 'S10 .hgx/.txt twin not present; skipping.');
+    sh = xrdc.io.readScan(hgx);
+    st = xrdc.io.readScan(txt);
+    tc.verifyEqual(sh.sourceFormat, "rigakuHgx");
+    n = min(numel(sh.twoTheta), numel(st.twoTheta));
+    tc.verifyEqual(sh.twoTheta(1:n), st.twoTheta(1:n), 'AbsTol', 1e-6);
+    tc.verifyEqual(sh.counts(1:n),   st.counts(1:n),   'RelTol', 1e-6, 'AbsTol', 1e-3);
+end

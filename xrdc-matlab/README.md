@@ -88,9 +88,10 @@ xrdc.plot.plotScan(scan, 'Title', "PbTiO_3/SrTiO_3");
 
 ## 4. Supported file formats
 
-`xrdc.io.readScan` auto-detects from the first 512 bytes:
+`xrdc.io.readScan` auto-detects from the first 512 bytes (or the extension for binary formats):
 
 - **Rigaku SmartLab** `.txt` (both headered and headerless variants)
+- **Rigaku SmartLab Studio II** `.hgx` (GlobalFit project — an HDF5 container; reads the measured curve, plus the simulated fit into `metadata`)
 - **PANalytical** `.xrdml` (single scan and multi-scan area files)
 - **Philips** `.x00`
 - Plain two-column text
