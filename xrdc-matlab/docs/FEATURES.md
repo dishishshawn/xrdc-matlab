@@ -47,6 +47,8 @@ _Last reconciled: 2026-06-05._
 - ✅ Nelson–Riley lattice-parameter refinement — `nelsonRiley`
 - ✅ Bragg-pattern simulation — `simulatePattern`
 - ✅ Kiessig thickness from fringe spacing — `thicknessFromFringes`
+- ✅ Superlattice period Λ from satellite spacing — `superlatticePeriod`
+      (per-layer A/B thickness needs Parratt/optical modelling — out of scope)
 
 ## Signal processing (`+xrdc/+signal`)
 - ✅ Smoothing — `smoothCounts` (csaps spline / sgolay / `sgolay_fallback`)
@@ -72,19 +74,23 @@ _Last reconciled: 2026-06-05._
 
 ## Testing
 - ✅ Suites for io, lattice, peaks, plot, rsm, signal, xrr (`tests/test*.m`)
-- ⏳ Full `runtests` green on the **lab** MATLAB — stated handoff gate (pending)
+- ✅ Full `runtests` green on the lab MATLAB (R2026a) — 105 pass, 0 fail, 5 skipped
+      (real-data/toolbox-gated). Handoff gate met.
 
 ## Distribution / packaging
 - ✅ MATLAB-project usage (clone + `addpath`)
-- ⏳ Standalone `XRDC.exe` — `build/buildStandalone.m` + checklist scaffolded;
-      compile gated last, pending MATLAB Compiler **install** (licensed, not installed)
+- ✅ Standalone `XRDC.exe` — builds via `build/buildStandalone.m` (Compiler R2026a);
+      single-file exe produced. Defender exclusion on the build folder needed for the
+      embed step, or use `buildStandalone(SingleFile=false)`. Runtime-verify on a
+      clean (no-MATLAB) machine still pending.
 
 ## Validation against external references
 - ✅ θ-2θ — Tushar S25 SRO/STO(100): peak positions match to <0.03°
 - ✅ Rocking-curve FWHM — Tushar S25: matches to ~1% with Gaussian fit
 - ✅ XRR / Kiessig thickness — S25 XRR (found in `data/`) → 40.30 ± 0.44 nm (21 fringes);
       full `data/` sweep (37 files, 0 crashes) in `validation/DATA_SWEEP.md`
-- ⬜ XRR — still worth confirming the 40.3 nm against Tushar's reported value
+- ⚠️ XRR — our ~40 nm (fringe spacing) vs Tushar's GenX fit ~36 nm (~11% high);
+      expected for fringe-spacing vs full Parratt model, but worth reconciling on S25
 - ⬜ RSM — no external reference checked yet
 
 ## Planned / wanted (from README, not started)

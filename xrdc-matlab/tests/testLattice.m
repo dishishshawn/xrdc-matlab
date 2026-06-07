@@ -188,6 +188,42 @@ function testKiessigReportsFitMetadata(tc)
     end
 end
 
+% ---------- Superlattice period ----------
+
+function testSuperlatticePeriodKnownAnswer(tc)
+    % Synthesize satellites evenly spaced in sin θ for a known period Λ
+    % around a main peak (~46°), then recover Λ.
+    lambda    = 1.5406;                    % Å
+    period_nm = 12;                        % true superlattice period
+    lambda_nm = lambda / 10;
+    slope     = lambda_nm / (2 * period_nm);
+    sinTh     = 0.395 + (-3:3).' * slope;  % 7 satellite orders about a main peak
+    twoTheta  = 2 * rad2deg(asin(sinTh));
+    res = xrdc.lattice.superlatticePeriod(twoTheta, lambda);
+    tc.verifyEqual(res.periodNm,    period_nm, 'AbsTol', 0.05);
+    tc.verifyEqual(res.periodFitNm, period_nm, 'AbsTol', 0.05);
+    tc.verifyEqual(res.nSatellites, 7);
+    tc.verifyGreaterThan(res.rSquared, 0.99);
+end
+
+function testSuperlatticePeriodOrderIndependent(tc)
+    % Result must not depend on the order the satellites are passed in.
+    lambda    = 1.5406;
+    period_nm = 8;
+    lambda_nm = lambda / 10;
+    slope     = lambda_nm / (2 * period_nm);
+    sinTh     = 0.30 + (0:5).' * slope;
+    twoTheta  = 2 * rad2deg(asin(sinTh));
+    res1 = xrdc.lattice.superlatticePeriod(twoTheta, lambda);
+    res2 = xrdc.lattice.superlatticePeriod(flipud(twoTheta), lambda);
+    tc.verifyEqual(res2.periodNm, res1.periodNm, 'AbsTol', 1e-9);
+end
+
+function testSuperlatticePeriodTooFew(tc)
+    tc.verifyError(@() xrdc.lattice.superlatticePeriod(46.5, 1.5406), ...
+        'xrdc:lattice:tooFewSatellites');
+end
+
 % ---------- simulatePattern ----------
 
 function testSimulateSrTiO3(tc)
