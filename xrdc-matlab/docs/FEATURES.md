@@ -67,6 +67,10 @@ _Last reconciled: 2026-06-05._
 ## GUI (`xrdcApp.m`)
 - ✅ Load → auto-detect → analyze → live re-plot → 600 dpi export
 - ✅ Zero-MATLAB-knowledge workflow for lab members
+- ✅ Animated launch splash (`xrdc.ui.showSplash`, `resources/splash.html`)
+- ✅ "Customize Plot…" — publication overrides on top of defaults
+      (`xrdc.plot.applyStyle`): title/labels, axis limits, log/linear, font
+      size, line colour/width, markers, grid, and sized export (in)
 
 ## Toolbox fallbacks (run without licenses)
 - ✅ Signal Processing fallback (`findpeaks_fallback`, `sgolay_fallback`)

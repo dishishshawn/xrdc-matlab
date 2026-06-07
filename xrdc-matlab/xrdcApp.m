@@ -17,7 +17,13 @@ function xrdcApp()
     thisDir = fileparts(mfilename('fullpath'));
     addpath(thisDir);
 
-    fig = uifigure('Name', 'XRDC Scan Analyzer', 'Position', [100 100 1200 750]);
+    % Animated launch splash. Shown first; the main window is built hidden
+    % and revealed at the end so the splash stays on top while loading.
+    splashFig = xrdc.ui.showSplash();
+    splashStart = tic;
+
+    fig = uifigure('Name', 'XRDC Scan Analyzer', 'Position', [100 100 1200 750], ...
+        'Visible', 'off');
     % Force a light theme so the hardcoded plot/label colors stay legible —
     % otherwise the app follows the OS dark mode and text goes low-contrast.
     % Theme is R2025a+; guard so older releases just keep their default.
@@ -33,9 +39,9 @@ function xrdcApp()
     grid.Padding      = [8 8 8 8];
 
     % Top bar: load + export
-    topBar = uigridlayout(grid, [1 3]);
+    topBar = uigridlayout(grid, [1 4]);
     topBar.Layout.Row = 1; topBar.Layout.Column = [1 2];
-    topBar.ColumnWidth = {130, 130, '1x'};
+    topBar.ColumnWidth = {130, 140, 150, '1x'};
     topBar.Padding = [0 0 0 0];
     uibutton(topBar, 'Text', 'Load Scan...', ...
         'FontSize', 13, 'FontWeight', 'bold', ...
@@ -44,6 +50,10 @@ function xrdcApp()
         'FontSize', 13, ...
         'Enable', 'off', ...
         'ButtonPushedFcn', @(~,~) onExport(fig));
+    customizeBtn = uibutton(topBar, 'Text', 'Customize Plot...', ...
+        'FontSize', 13, ...
+        'Enable', 'off', ...
+        'ButtonPushedFcn', @(~,~) onCustomizePlot(fig));
 
     % Info strip
     infoLbl = uilabel(grid, 'Text', '  No scan loaded. Click "Load Scan..." to begin.', ...
@@ -69,14 +79,24 @@ function xrdcApp()
     st.filePath    = '';
     st.detectedType = "";
     st.params      = struct();
+    st.style       = defaultStyle();
     st.ax          = ax;
     st.infoLbl     = infoLbl;
     st.exportBtn   = exportBtn;
+    st.customizeBtn = customizeBtn;
     st.leftPanel   = leftPanel;
     st.resultsArea = [];
     fig.UserData = st;
 
     placeholder(ax);
+
+    % Reveal the finished app, then dismiss the splash — but keep the splash
+    % up for a minimum so its launch animation is actually seen on fast loads.
+    minSplashSecs = 1.8;
+    pause(max(0, minSplashSecs - toc(splashStart)));
+    fig.Visible = 'on';
+    drawnow;
+    delete(splashFig);
 end
 
 % =====================================================================
@@ -93,6 +113,7 @@ function onLoadScan(fig)
     st = fig.UserData;
     st.filePath = fullPath;
     st.params   = struct();   % reset per-scan parameters
+    st.style    = defaultStyle();   % reset plot-style overrides per scan
     st.rsmScans = [];
 
     dlg = uiprogressdlg(fig, 'Title', 'Loading scan', ...
@@ -120,6 +141,7 @@ function onLoadScan(fig)
         file, upper(char(st.detectedType)), numel(st.scan.twoTheta));
     st.infoLbl.FontColor = [0 0 0];
     st.exportBtn.Enable = 'on';
+    st.customizeBtn.Enable = 'on';
     fig.UserData = st;
 
     dlg.Message = 'Running analysis ...';
@@ -143,13 +165,31 @@ function onExport(fig)
         'Export figure', defaultName);
     if isequal(file, 0), return, end
 
+    target = fullfile(path, file);
+    W = styleNum(st.style, 'exportW');
+    H = styleNum(st.style, 'exportH');
     try
-        exportgraphics(st.ax, fullfile(path, file), 'Resolution', 600);
-        uialert(fig, sprintf('Saved:\n%s', fullfile(path, file)), ...
-            'Export', 'Icon', 'success');
+        if ~isnan(W) && ~isnan(H) && W > 0 && H > 0
+            exportSized(st.ax, target, W, H);   % honor Customize Plot size
+        else
+            exportgraphics(st.ax, target, 'Resolution', 600);
+        end
+        uialert(fig, sprintf('Saved:\n%s', target), 'Export', 'Icon', 'success');
     catch ME
         uialert(fig, sprintf('Export failed:\n%s', ME.message), 'Error', 'Icon', 'error');
     end
+end
+
+function exportSized(ax, target, widthIn, heightIn)
+%EXPORTSIZED  Export an axes at a specific physical size (inches @ 600 dpi).
+%   copyobj the axes into a temporary uifigure sized to the requested
+%   inches so the exported figure matches a journal column width.
+    tmp = uifigure('Visible', 'off', ...
+        'Position', [0 0 round(widthIn * 96) round(heightIn * 96)]);
+    cleanup = onCleanup(@() delete(tmp));
+    tg = uigridlayout(tmp, [1 1], 'Padding', [2 2 2 2]);
+    ax2 = copyobj(ax, tg); %#ok<NASGU>
+    exportgraphics(ax2, target, 'Resolution', 600);
 end
 
 function onParamChange(fig, name, value)
@@ -249,6 +289,14 @@ function runAnalysis(fig)
     catch ME
         uialert(fig, sprintf('Analysis error:\n\n%s', ME.message), ...
             'Analysis error', 'Icon', 'error');
+    end
+
+    % Apply the user's optional plot-style overrides on top of the
+    % per-analysis defaults (no-op when nothing is overridden).
+    try
+        s = fig.UserData;
+        xrdc.plot.applyStyle(s.ax, s.style);
+    catch
     end
 end
 
@@ -559,6 +607,105 @@ function writeResults(fig, lines)
     if ~isempty(st.resultsArea) && isvalid(st.resultsArea)
         st.resultsArea.Value = lines(:);
     end
+end
+
+% =====================================================================
+% Plot-style customization (publication export)
+% =====================================================================
+function s = defaultStyle()
+%DEFAULTSTYLE  Override fields, all empty/"auto" → keep analysis defaults.
+    s = struct('title', '', 'xlabel', '', 'ylabel', '', ...
+        'xmin', '', 'xmax', '', 'ymin', '', 'ymax', '', ...
+        'yscale', 'auto', 'fontSize', '', 'lineWidth', '', ...
+        'lineColor', 'auto', 'markers', 'auto', 'grid', 'auto', ...
+        'exportW', '', 'exportH', '');
+end
+
+function v = styleNum(style, name)
+    if isfield(style, name)
+        v = str2double(strtrim(string(style.(name))));
+    else
+        v = NaN;
+    end
+end
+
+function onCustomizePlot(fig)
+%ONCUSTOMIZEPLOT  Modal-ish dialog of optional overrides for the live plot.
+%   Defaults are preserved: blank/"auto" fields change nothing. "Apply"
+%   re-renders the current analysis with the overrides; "Reset" restores
+%   defaults. Export honours the width/height fields.
+    st = fig.UserData;
+    if isempty(st.scan) && isempty(st.rsmScans), return, end
+    s = st.style;
+
+    d = uifigure('Name', 'Customize Plot', 'Position', [220 160 380 590]);
+    g = uigridlayout(d, [17 2]);
+    g.RowHeight   = [repmat({28}, 1, 16), {36}];
+    g.ColumnWidth = {150, '1x'};
+    g.Padding     = [12 12 12 12];
+    g.RowSpacing  = 5;
+
+    f = struct(); r = 1;
+    [f.title, r]     = dlgEdit(g, r, 'Title (blank=auto)', s.title);
+    [f.xlabel, r]    = dlgEdit(g, r, 'X label',            s.xlabel);
+    [f.ylabel, r]    = dlgEdit(g, r, 'Y label',            s.ylabel);
+    [f.xmin, r]      = dlgEdit(g, r, 'X min',              s.xmin);
+    [f.xmax, r]      = dlgEdit(g, r, 'X max',              s.xmax);
+    [f.ymin, r]      = dlgEdit(g, r, 'Y min',              s.ymin);
+    [f.ymax, r]      = dlgEdit(g, r, 'Y max',              s.ymax);
+    [f.yscale, r]    = dlgDrop(g, r, 'Y scale', {'auto','linear','log'}, s.yscale);
+    [f.fontSize, r]  = dlgEdit(g, r, 'Font size',          s.fontSize);
+    [f.lineWidth, r] = dlgEdit(g, r, 'Line width',         s.lineWidth);
+    [f.lineColor, r] = dlgDrop(g, r, 'Line colour', ...
+        {'auto','blue','black','red','green','orange','purple','gray'}, s.lineColor);
+    [f.markers, r]   = dlgDrop(g, r, 'Peak markers', {'auto','on','off'}, s.markers);
+    [f.grid, r]      = dlgDrop(g, r, 'Grid',         {'auto','on','off'}, s.grid);
+    [f.exportW, r]   = dlgEdit(g, r, 'Export width (in)',  s.exportW);
+    [f.exportH, r]   = dlgEdit(g, r, 'Export height (in)', s.exportH);
+
+    note = uilabel(g, 'Text', 'Blank / "auto" keeps the default.', ...
+        'FontAngle', 'italic', 'FontColor', [0.45 0.45 0.45]);
+    note.Layout.Row = 16; note.Layout.Column = [1 2];
+
+    btns = uigridlayout(g, [1 3], 'Padding', [0 0 0 0]);
+    btns.Layout.Row = 17; btns.Layout.Column = [1 2];
+    uibutton(btns, 'Text', 'Apply', 'FontWeight', 'bold', ...
+        'ButtonPushedFcn', @(~,~) applyDlg());
+    uibutton(btns, 'Text', 'Reset', 'ButtonPushedFcn', @(~,~) resetDlg());
+    uibutton(btns, 'Text', 'Close', 'ButtonPushedFcn', @(~,~) close(d));
+
+    function applyDlg()
+        ns = defaultStyle();
+        for fn = fieldnames(f)'
+            ns.(fn{1}) = f.(fn{1}).Value;
+        end
+        s2 = fig.UserData; s2.style = ns; fig.UserData = s2;
+        runAnalysis(fig);
+    end
+    function resetDlg()
+        ds = defaultStyle();
+        for fn = fieldnames(f)'
+            f.(fn{1}).Value = ds.(fn{1});
+        end
+        s2 = fig.UserData; s2.style = ds; fig.UserData = s2;
+        runAnalysis(fig);
+    end
+end
+
+function [h, row] = dlgEdit(g, row, label, val)
+    lbl = uilabel(g, 'Text', label);
+    lbl.Layout.Row = row; lbl.Layout.Column = 1;
+    h = uieditfield(g, 'Value', char(string(val)));
+    h.Layout.Row = row; h.Layout.Column = 2;
+    row = row + 1;
+end
+
+function [h, row] = dlgDrop(g, row, label, items, val)
+    lbl = uilabel(g, 'Text', label);
+    lbl.Layout.Row = row; lbl.Layout.Column = 1;
+    h = uidropdown(g, 'Items', items, 'Value', char(string(val)));
+    h.Layout.Row = row; h.Layout.Column = 2;
+    row = row + 1;
 end
 
 function v = getNum(params, name, default)

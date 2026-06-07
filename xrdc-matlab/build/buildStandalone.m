@@ -92,6 +92,14 @@ function out = buildStandalone(opts)
         end
     end
 
+    % Animated launch splash. xrdc.ui.showSplash reads this via fileread, so
+    % the dependency analyzer can't see it — add it explicitly or the exe
+    % silently launches with no splash.
+    splashFile = fullfile(repoRoot, "resources", "splash.html");
+    if isfile(splashFile)
+        extraFiles(end+1, 1) = splashFile;
+    end
+
     if opts.Verbose
         fprintf("Compiling %s -> %s\n", appFile, opts.OutputDir);
         fprintf("  bundling %d data file(s); +xrdc resolved by dependency analysis\n", ...

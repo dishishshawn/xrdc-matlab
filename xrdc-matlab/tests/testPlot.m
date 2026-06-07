@@ -146,3 +146,49 @@ function testPlotStackEmpty(tc)
     tc.verifyError(@() xrdc.plot.plotStack(repmat(makeSyntheticScan(), 0, 1)), ...
         'xrdc:plot:emptyStack');
 end
+
+% ---------- applyStyle (publication overrides) ----------
+
+function testApplyStyleOverrides(tc)
+    f = figure('Visible', 'off'); ax = axes(f);
+    plot(ax, 1:100, (1:100).^2, '-');          % trace (100 pts)
+    hold(ax, 'on');
+    plot(ax, [25 75], [625 5625], 'v');        % peak markers (2 pts)
+    title(ax, 'auto'); xlabel(ax, 'ax'); ylabel(ax, 'ay');
+
+    style = struct('title', 'My Title', 'xlabel', 'X', 'ylabel', 'Y', ...
+        'xmin', '10', 'xmax', '90', 'ymin', '', 'ymax', '', ...
+        'yscale', 'log', 'fontSize', '16', 'lineWidth', '3', ...
+        'lineColor', 'red', 'markers', 'off', 'grid', 'off');
+    xrdc.plot.applyStyle(ax, style);
+
+    tc.verifyEqual(char(ax.Title.String), 'My Title');
+    tc.verifyEqual(char(ax.XLabel.String), 'X');
+    tc.verifyEqual(ax.XLim, [10 90]);
+    tc.verifyEqual(ax.YScale, 'log');
+    tc.verifyEqual(ax.FontSize, 16);
+
+    lns = findobj(ax, 'Type', 'line');
+    [~, it] = max(arrayfun(@(h) numel(h.XData), lns));
+    tc.verifyEqual(lns(it).LineWidth, 3);
+    tc.verifyEqual(lns(it).Color, [0.85 0.20 0.20]);
+
+    mk = findobj(ax, 'Type', 'line', '-not', 'Marker', 'none');
+    tc.verifyEqual(char(mk(1).Visible), 'off');
+    close(f);
+end
+
+function testApplyStyleAutoIsNoOp(tc)
+    f = figure('Visible', 'off'); ax = axes(f);
+    plot(ax, 1:10, 1:10); title(ax, 'keep'); xlabel(ax, 'kx');
+    set(ax, 'YScale', 'linear');
+    style = struct('title', '', 'xlabel', '', 'ylabel', '', ...
+        'xmin', '', 'xmax', '', 'ymin', '', 'ymax', '', ...
+        'yscale', 'auto', 'fontSize', '', 'lineWidth', '', ...
+        'lineColor', 'auto', 'markers', 'auto', 'grid', 'auto');
+    xrdc.plot.applyStyle(ax, style);
+    tc.verifyEqual(char(ax.Title.String), 'keep');
+    tc.verifyEqual(char(ax.XLabel.String), 'kx');
+    tc.verifyEqual(ax.YScale, 'linear');
+    close(f);
+end
