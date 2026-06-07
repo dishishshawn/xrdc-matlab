@@ -177,7 +177,7 @@ function buildAnalysisPanel(fig)
     switch t
         case 'omega'
             row = addEdit (g, row, 'Fit window (°)', '0.5', @(v) onParamChange(fig, 'fitWindow', v));
-            row = addDrop (g, row, 'Shape', {'lorentz','gauss','pseudoVoigt'}, 'lorentz', ...
+            row = addDrop (g, row, 'Shape', {'gauss','lorentz','pseudoVoigt'}, 'gauss', ...
                                                       @(v) onParamChange(fig, 'shape',     v));
         case 'twothetaomega'
             row = addEdit (g, row, 'Min prom (%)',   '5',   @(v) onParamChange(fig, 'promPct',   v));
@@ -294,7 +294,7 @@ function runRockingCurve(fig)
     [~, idx] = max([pk.counts]); pkMain = pk(idx);
 
     w     = getNum(st.params, 'fitWindow', 0.5);
-    shape = getStr(st.params, 'shape',    'lorentz');
+    shape = getStr(st.params, 'shape',    'gauss');
     window = [pkMain.twoTheta - w, pkMain.twoTheta + w];
 
     fit = xrdc.peaks.fitPeak(scan, window, 'Shape', string(shape));

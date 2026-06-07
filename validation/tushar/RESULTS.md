@@ -37,8 +37,23 @@ All three figures reproduced by `runValidation.m` (2026-06-06); θ-2θ first run
 From the repo root, in MATLAB: `run('validation/tushar/runValidation.m')`. It regenerates the
 XRR and combined-RC PNGs in `output/` and prints the FWHM / thickness summary.
 
+## Tushar confirmations (2026-06-07, email)
+- **RC fit shape = Gaussian.** Tushar confirmed he used a Gaussian fit for the FWHM values.
+  This matches our finding exactly. The GUI rocking-curve panel now **defaults to Gaussian**
+  (`xrdcApp.m`, `case 'omega'`); Lorentzian/pseudoVoigt still selectable, and all shapes are
+  shown as a cross-check.
+- **XRR thickness (GenX) ≈ 36 nm.** Our Kiessig fringe-spacing estimate is 40.3 nm (quad), with
+  linear 41.6 and FFT 40.7 — internally consistent at ~40–41 nm, i.e. **~11% above** his GenX
+  value. GenX fits the full reflectivity curve (critical edge + roughness + density), so some
+  divergence from a pure fringe-spacing estimate is expected; worth reconciling but not a bug.
+
 ## Follow-ups
-1. Confirm with Tushar that his FWHM came from a **Gaussian** fit. If so, document it and
-   consider whether RC analysis should default to (or offer) Gaussian.
-2. ~~Ask Tushar for the XRR `.txt`.~~ **Done** — XRR validated, d = 40.3 nm. Optionally ask Tushar
-   for *his* fitted thickness to put a number against ours (his figure has no thickness annotation).
+1. ~~Confirm Gaussian RC fit.~~ **Done** — confirmed; RC default flipped to Gaussian.
+2. ~~Ask Tushar for XRR thickness.~~ **Done** — GenX ≈ 36 nm vs our ~40 nm (see above).
+3. Reconcile the ~4 nm XRR gap: re-check our fringe identification / critical-edge handling on
+   S25, and (if possible) compare against the GenX model parameters.
+4. **New (Tushar request): superlattice / heterostructure thickness.** Superlattice *period* Λ
+   is computable now from satellite-peak spacing via `xrdc.lattice.thicknessFromFringes` (same
+   `(N−1)λ/2(sinθ_N−sinθ_1)` math, fed satellite 2θ positions). Total stack thickness already
+   comes from XRR Kiessig (`analyzeFringes`). Per-layer thickness needs full Parratt/optical
+   modelling (GenX territory) — out of scope for fringe methods.
