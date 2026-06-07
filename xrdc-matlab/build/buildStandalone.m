@@ -23,6 +23,11 @@ function out = buildStandalone(opts)
 %     Embed     (logical) If true, package the MATLAB Runtime installer into
 %                         the output so peers don't download it separately
 %                         (much larger artifact). Default: false (web installer).
+%     SingleFile (logical) If true (default), embed the CTF archive INSIDE the
+%                         exe for a single-file deliverable. If false, the code
+%                         ships as a companion XRDC.ctf that must travel next to
+%                         the exe. Set false if antivirus blocks the build (see
+%                         Notes). Default: true.
 %     Verbose   (logical) Print progress. Default: true.
 %
 %   Output
@@ -35,12 +40,20 @@ function out = buildStandalone(opts)
 %     - Produces a Windows app (no console window). For macOS/Linux, swap
 %       standaloneWindowsApplication -> standaloneApplication below and run
 %       the build on that platform (the Runtime is platform-specific).
+%     - ANTIVIRUS RACE: with SingleFile=true the builder re-opens the freshly
+%       written exe to embed the archive; Windows Defender can grab a handle on
+%       the new unsigned exe in that window, causing a "process cannot access
+%       the file ... being used by another process" failure (often leaving a
+%       small partial exe). Fixes, in order of preference: (1) add a Defender
+%       exclusion for this build folder, or (2) build with SingleFile=false
+%       (single write, no re-open) and distribute exe + XRDC.ctf together.
 
     arguments
-        opts.OutputDir (1,1) string = ""
-        opts.AppName   (1,1) string = "XRDC"
-        opts.Embed     (1,1) logical = false
-        opts.Verbose   (1,1) logical = true
+        opts.OutputDir  (1,1) string  = ""
+        opts.AppName    (1,1) string  = "XRDC"
+        opts.Embed      (1,1) logical = false
+        opts.SingleFile (1,1) logical = true
+        opts.Verbose    (1,1) logical = true
     end
 
     % --- Resolve repo root relative to this file (build/ is under root) ---
@@ -85,20 +98,39 @@ function out = buildStandalone(opts)
             numel(extraFiles));
     end
 
-    if opts.Embed
-        runtimeOpt = "installer";   % web-based MCR installer bundled
-    else
-        runtimeOpt = "none";        % peers fetch the Runtime themselves
+    % --- Build (Windows GUI app: no console window) ---
+    try
+        out = compiler.build.standaloneWindowsApplication(appFile, ...
+            "ExecutableName",   opts.AppName, ...
+            "AdditionalFiles",  cellstr([pkgDir; extraFiles]), ...
+            "OutputDir",        char(opts.OutputDir), ...
+            "EmbedArchive",     matlab.lang.OnOffSwitchState(opts.SingleFile), ...
+            "Verbose",          matlab.lang.OnOffSwitchState(opts.Verbose));
+    catch err
+        if contains(err.message, "being used by another process") && opts.SingleFile
+            error("xrdc:build:fileLocked", ...
+                "Build failed: the exe was locked mid-embed (usually antivirus " + ...
+                "scanning the new file). Either add a Defender exclusion for %s, " + ...
+                "or rebuild with buildStandalone(SingleFile=false) to ship exe + " + ...
+                "XRDC.ctf together.\nOriginal error: %s", opts.OutputDir, err.message);
+        end
+        rethrow(err);
     end
 
-    % --- Build (Windows GUI app: no console window) ---
-    out = compiler.build.standaloneWindowsApplication(appFile, ...
-        "ExecutableName",   opts.AppName, ...
-        "AdditionalFiles",  cellstr([pkgDir; extraFiles]), ...
-        "OutputDir",        char(opts.OutputDir), ...
-        "EmbedArchive",     true, ...
-        "RuntimeIncludeOption", runtimeOpt, ...
-        "Verbose",          matlab.lang.OnOffSwitchState(opts.Verbose));
+    % --- Optionally wrap in an installer that bundles the MATLAB Runtime ---
+    % compiler.build.* only produces the raw exe; Runtime packaging is a
+    % SEPARATE step via compiler.package.installer (the build call has no
+    % runtime option — passing one errors). RuntimeDelivery="installer"
+    % embeds the Runtime (large, offline); "web" fetches it at install time.
+    if opts.Embed
+        if opts.Verbose
+            fprintf("Packaging installer with bundled MATLAB Runtime...\n");
+        end
+        compiler.package.installer(out, ...
+            "ApplicationName", char(opts.AppName), ...
+            "RuntimeDelivery", "installer", ...
+            "OutputDir",       char(fullfile(opts.OutputDir, "installer")));
+    end
 
     if opts.Verbose
         fprintf("\nDone. Executable written to:\n  %s\n", ...

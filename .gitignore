@@ -19,6 +19,9 @@ desktop.ini
 *.mat
 slprj/
 
+# Standalone build output (generated binaries — release artifacts, not source)
+xrdc-matlab/build/standalone/
+
 # Demo outputs (exportgraphics targets)
 xrdc-matlab/*.png
 xrdc-matlab/*.pdf
