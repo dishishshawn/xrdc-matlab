@@ -23,7 +23,8 @@ _Last reconciled: 2026-06-05._
 ## Scan types & analyses
 - ✅ θ-2θ (`twoThetaOmega`) — peaks + substrate overlay **[validated vs Tushar S25]**
 - ✅ Rocking curve (`omega`) — peak fit → FWHM **[validated vs Tushar S25, Gaussian]**
-- ✅ φ scan (`phi`) — linear-Y, 4-fold symmetry detection
+- ✅ φ scan (`phi`) — noise-floor pole detection + 360° wrap handling + n-fold
+      symmetry report (`findPhiPeaks`); robust on weak films **[validated on PtO₂/TiO₂(101)]**
 - ✅ XRR — critical edge, Kiessig fringes, film thickness (`+xrr`)
 - ✅ Reciprocal-space map (`area`) — load, transform, contour (`+rsm`)
 - ✅ Scan-type auto-detection from file content + name

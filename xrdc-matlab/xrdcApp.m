@@ -193,7 +193,7 @@ function buildAnalysisPanel(fig)
             row = addEdit (g, row, 'Fringe 2θ max',  '5.0', @(v) onParamChange(fig, 'xrrMax',    v));
             row = addEdit (g, row, 'Min prom (%)',   '1.5', @(v) onParamChange(fig, 'xrrProm',   v));
         case 'phi'
-            row = addEdit (g, row, 'Min prom (%)',   '10',  @(v) onParamChange(fig, 'promPct',   v));
+            row = addEdit (g, row, 'Noise σ (k)',    '6',   @(v) onParamChange(fig, 'noiseSigmas', v));
         case 'rsm'
             row = addDrop (g, row, 'Colormap', {'turbo','parula','jet'}, 'turbo', ...
                                                       @(v) onParamChange(fig, 'colormap', v));
@@ -444,10 +444,12 @@ function runPhiScan(fig)
     st   = fig.UserData;
     scan = st.scan; ax = st.ax;
 
-    promPct = getNum(st.params, 'promPct', 10);
-    pk = xrdc.peaks.findPeaks(scan, ...
-        'MinProminence', max(scan.counts) * promPct / 100, ...
-        'MinSeparation', 30);
+    % phi-aware pole detection: a NOISE-floor threshold (robust on weak
+    % films, where "10% of max" sat below the noise and counted spikes as
+    % poles) plus circular handling of the 360° wrap. See
+    % xrdc.peaks.findPhiPeaks.
+    nSig = getNum(st.params, 'noiseSigmas', 6);
+    [pk, info] = xrdc.peaks.findPhiPeaks(scan, 'NoiseSigmas', nSig);
 
     plot(ax, scan.twoTheta, scan.counts, '-', 'Color', [0.1 0.4 0.8], 'LineWidth', 1.5);
     hold(ax, 'on');
@@ -456,22 +458,20 @@ function runPhiScan(fig)
             'MarkerFaceColor', [0.85 0.2 0.2], 'MarkerEdgeColor', 'k', 'MarkerSize', 8);
     end
     hold(ax, 'off');
-    stylePubAxes(ax, '\phi (°)', 'Counts', sprintf('φ scan — %d peaks', numel(pk)));
+    stylePubAxes(ax, '\phi (°)', 'Counts', sprintf('φ scan — %d pole(s)', numel(pk)));
     set(ax, 'YScale', 'linear');
 
-    lines = {sprintf('Detected %d peak(s):', numel(pk)), ''};
+    lines = {sprintf('Detected %d pole(s)  (height ≥ %.0f cts; bg %.1f, noise σ %.1f):', ...
+        numel(pk), info.heightThreshold, info.background, info.noiseSigma), ''};
     for i = 1:numel(pk)
         lines{end+1} = sprintf('  %2d.  φ = %7.2f°    I = %.0f', ...
             i, pk(i).twoTheta, pk(i).counts); %#ok<AGROW>
     end
-    if numel(pk) >= 4
-        phis     = sort([pk.twoTheta]);
-        spacings = diff(phis);
+    if ~isnan(info.fold)
         lines{end+1} = '';
-        lines{end+1} = sprintf('Spacings: %s °', join(string(round(spacings, 1)), ', '));
-        if numel(pk) == 4 && all(abs(spacings - 90) < 5)
-            lines{end+1} = '✓ 4-fold symmetry (within 5°)';
-        end
+        lines{end+1} = sprintf('Unique poles: %d    spacings: %s°', ...
+            info.nUnique, join(string(round(info.spacings, 1)), ', '));
+        lines{end+1} = sprintf('→ %d-fold symmetry', info.fold);
     end
     writeResults(fig, lines);
 end

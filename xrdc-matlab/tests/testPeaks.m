@@ -247,6 +247,46 @@ function testFitPeakTooFewPoints(tc)
         'xrdc:peaks:tooFewPoints');
 end
 
+% ---------- findPhiPeaks ----------
+
+function testFindPhiPeaksRejectsNoiseAndCountsFold(tc)
+    % Weak 4-fold pole scan: 4 poles ~20 counts on a 1-count background,
+    % plus single-bin noise spikes of 3 counts. The noise-floor threshold
+    % must keep the 4 poles and reject the spikes (the legacy "10% of max"
+    % rule would have counted the spikes).
+    phi = (-180:0.2:179.8).';
+    y   = ones(size(phi));
+    for c = [-135 -45 45 135]
+        y = y + 20 * exp(-((phi - c).^2) / (2 * 0.3^2));
+    end
+    y([100 500 900 1300]) = 3;          % noise spikes, below bg + 6σ
+
+    s = xrdc.io.emptyScan();
+    s.twoTheta = phi; s.counts = y; s.scanType = "phi";
+
+    [pk, info] = xrdc.peaks.findPhiPeaks(s);
+    tc.verifyEqual(numel(pk), 4);
+    tc.verifyEqual(info.nUnique, 4);
+    tc.verifyEqual(info.fold, 4);
+    tc.verifyLessThan(max(abs(info.spacings - 90)), 1);
+end
+
+function testFindPhiPeaksDedupesWrapAcross360(tc)
+    % An over-rotated scan (>360°) captures the same pole at both ends; it
+    % should be counted once, still 4-fold.
+    phi = (-200:0.2:200).';             % 400° span
+    y   = ones(size(phi));
+    for c = [-180 -90 0 90 180]         % +180 and -180 are the same pole
+        y = y + 30 * exp(-((phi - c).^2) / (2 * 0.3^2));
+    end
+    s = xrdc.io.emptyScan();
+    s.twoTheta = phi; s.counts = y; s.scanType = "phi";
+
+    [~, info] = xrdc.peaks.findPhiPeaks(s);
+    tc.verifyEqual(info.nUnique, 4);
+    tc.verifyEqual(info.fold, 4);
+end
+
 % ---------- small helpers ----------
 
 function s = emptyPkStruct()
