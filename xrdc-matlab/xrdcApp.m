@@ -457,6 +457,22 @@ function runPhiScan(fig)
         plot(ax, [pk.twoTheta], [pk.counts], 'v', ...
             'MarkerFaceColor', [0.85 0.2 0.2], 'MarkerEdgeColor', 'k', 'MarkerSize', 8);
     end
+    % Wrap repeats: same crystal direction as a counted pole, 360° away (the
+    % cut-off edge of a pole whose apex is just past the scan). Mark with a
+    % faint open grey marker + "↻ wrap" so a viewer sees the full turn was
+    % covered, clearly distinct from the solid red pole markers — and NOT
+    % counted toward the pole/symmetry tally.
+    wr = info.wrapRepeats;
+    if ~isempty(wr)
+        plot(ax, [wr.twoTheta], [wr.counts], 'o', ...
+            'MarkerEdgeColor', [0.55 0.55 0.55], 'MarkerFaceColor', 'none', ...
+            'LineWidth', 1.2, 'MarkerSize', 11);
+        for j = 1:numel(wr)
+            text(ax, wr(j).twoTheta, double(wr(j).counts), '↻ wrap  ', ...
+                'Color', [0.55 0.55 0.55], 'FontSize', 9, ...
+                'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom');
+        end
+    end
     hold(ax, 'off');
     stylePubAxes(ax, '\phi (°)', 'Counts', sprintf('φ scan — %d pole(s)', numel(pk)));
     set(ax, 'YScale', 'linear');
@@ -472,6 +488,12 @@ function runPhiScan(fig)
         lines{end+1} = sprintf('Unique poles: %d    spacings: %s°', ...
             info.nUnique, join(string(round(info.spacings, 1)), ', '));
         lines{end+1} = sprintf('→ %d-fold symmetry', info.fold);
+    end
+    if ~isempty(wr)
+        lines{end+1} = '';
+        lines{end+1} = sprintf(['%d wrap repeat(s) at %s° (= a counted pole, ' ...
+            '360° away; not counted)'], numel(wr), ...
+            join(string(round([wr.twoTheta], 1)), ', '));
     end
     writeResults(fig, lines);
 end

@@ -98,7 +98,8 @@ function [peaks, info] = findPhiPeaks(scan, options)
 
     info = struct('background', bg, 'noiseSigma', sigma, ...
         'heightThreshold', H, 'nPoles', numel(pk), ...
-        'nUnique', numel(pk), 'spacings', [], 'fold', NaN);
+        'nUnique', numel(pk), 'spacings', [], 'fold', NaN, ...
+        'wrapRepeats', struct('twoTheta', {}, 'counts', {}));
     if isempty(pk)
         return
     end
@@ -123,5 +124,28 @@ function [peaks, info] = findPhiPeaks(scan, options)
     if numel(uniq) >= 2
         info.spacings = diff(uniq);
         info.fold     = round(options.Period / median(info.spacings));
+    end
+
+    % Wrap repeats: a maximum at the scan boundary whose direction (mod
+    % Period) matches a pole already counted — the cut-off edge of a pole
+    % whose apex sits just beyond the scan. Reported for annotation only;
+    % NOT counted as a pole (that would double-count one crystal direction).
+    n = numel(y);
+    cand = [];
+    if n >= 2
+        if y(end) >= H && y(end) >= y(end-1), cand(end+1) = n; end
+        if y(1)   >= H && y(1)   >= y(2),     cand(end+1) = 1; end
+    end
+    poleCanon = mod([pk.twoTheta], options.Period);
+    poleTT    = [pk.twoTheta];
+    for idx = cand
+        c = mod(x(idx), options.Period);
+        dC = abs(c - poleCanon); dC = min(dC, options.Period - dC);
+        dL = abs(x(idx) - poleTT);
+        % matches a counted pole by direction, but is not itself one of them
+        if any(dC <= options.MinSeparation) && all(dL > options.MinSeparation)
+            info.wrapRepeats(end+1) = ...
+                struct('twoTheta', x(idx), 'counts', y(idx)); %#ok<AGROW>
+        end
     end
 end

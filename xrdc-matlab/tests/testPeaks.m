@@ -287,6 +287,27 @@ function testFindPhiPeaksDedupesWrapAcross360(tc)
     tc.verifyEqual(info.fold, 4);
 end
 
+function testFindPhiPeaksFlagsBoundaryWrap(tc)
+    % Mimic the real PtO2 geometry: 4 poles 90° apart, scan spanning ~360°
+    % so one pole's next-period instance has its apex just past the end,
+    % leaving a cut-off edge at the boundary. That edge must be flagged as a
+    % wrap repeat (same direction as a counted pole), NOT a 5th pole.
+    phi = (-197.9:0.2:161.9).';
+    y   = ones(size(phi));
+    for c = [-197.4 -107.4 -17.4 72.6 162.6]   % 162.6 ≡ -197.4 (360° away)
+        y = y + 30 * exp(-((phi - c).^2) / (2 * 0.5^2));
+    end
+    s = xrdc.io.emptyScan();
+    s.twoTheta = phi; s.counts = y; s.scanType = "phi";
+
+    [pk, info] = xrdc.peaks.findPhiPeaks(s);
+    tc.verifyEqual(numel(pk), 4);                       % 4 poles, not 5
+    tc.verifyEqual(info.fold, 4);
+    tc.verifyGreaterThanOrEqual(numel(info.wrapRepeats), 1);
+    % the wrap sits near the scan end, not on a counted pole
+    tc.verifyGreaterThan(info.wrapRepeats(1).twoTheta, 150);
+end
+
 % ---------- small helpers ----------
 
 function s = emptyPkStruct()
