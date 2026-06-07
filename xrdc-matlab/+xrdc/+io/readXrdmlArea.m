@@ -104,12 +104,17 @@ end
 
 function [tt0, tt1, omegaVal] = readSlicePositions(dataPointsNode)
 %READSLICEPOSITIONS  Pull 2θ start/end and ω common position from one slice.
-    posNodes = dataPointsNode.getElementsByTagName('positions');
+    % Iterate DIRECT children only and pick the <positions> elements. (We
+    % can't use getElementsByTagName + a parent-identity check: node handles
+    % from matlab.io.xml.dom don't support reference equality with ~=, so the
+    % old check skipped every node. Direct-child iteration also inherently
+    % excludes any nested <positions> from deeper elements.)
+    children = dataPointsNode.getChildNodes();
     tt0 = NaN; tt1 = NaN; omegaVal = NaN;
-    for k = 0:(posNodes.getLength() - 1)
-        node = posNodes.item(k);
-        if node.getParentNode() ~= dataPointsNode
-            continue  % skip nested <positions> from deeper children
+    for k = 0:(children.getLength() - 1)
+        node = children.item(k);
+        if ~strcmp(char(node.getNodeName()), 'positions')
+            continue  % skip text/whitespace nodes and non-<positions> elements
         end
         axisName = "";
         if node.hasAttribute('axis')

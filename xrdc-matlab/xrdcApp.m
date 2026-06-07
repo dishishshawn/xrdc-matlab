@@ -18,6 +18,13 @@ function xrdcApp()
     addpath(thisDir);
 
     fig = uifigure('Name', 'XRDC Scan Analyzer', 'Position', [100 100 1200 750]);
+    % Force a light theme so the hardcoded plot/label colors stay legible —
+    % otherwise the app follows the OS dark mode and text goes low-contrast.
+    % Theme is R2025a+; guard so older releases just keep their default.
+    try
+        fig.Theme = 'light';
+    catch
+    end
     grid = uigridlayout(fig, [3 2]);
     grid.RowHeight    = {40, 32, '1x'};
     grid.ColumnWidth  = {300, '1x'};
