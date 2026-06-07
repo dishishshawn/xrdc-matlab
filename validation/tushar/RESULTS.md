@@ -47,13 +47,28 @@ XRR and combined-RC PNGs in `output/` and prints the FWHM / thickness summary.
   value. GenX fits the full reflectivity curve (critical edge + roughness + density), so some
   divergence from a pure fringe-spacing estimate is expected; worth reconciling but not a bug.
 
+## XRR thickness reconciliation (2026-06-07) — not a bug
+Investigated the ~4 nm gap (our ~40 nm fringe-spacing vs Tushar's GenX ~36 nm).
+**Conclusion: our estimate is sound; the gap is a method difference, not an error.**
+- **Refraction/critical-edge ruled out.** Re-fitting with only high-angle fringes (where
+  refraction is negligible) leaves the thickness flat: linear fit = 41.6 (all) → 41.1 (>1°) →
+  40.6 (>1.5°) → 40.4 (>2°) → 40.8 (>2.5°). A critical-edge-handling bug would pull the
+  high-angle value down toward 36; it doesn't. Evidence: `output/S25_XRR_reconcile.png`.
+- **What's left** is the expected gap between a geometric fringe-spacing estimate and a full
+  Parratt fit (GenX models roughness + density + possibly a 2-layer stack, which can legitimately
+  yield a smaller *layer* thickness than the total-stack fringe period).
+- **Minor quality note:** a couple of detected fringes are slightly off-cadence (~0.9° and ~4.3° —
+  one likely split/missed fringe). The robust 21-point linear fit absorbs it; it adds scatter, not
+  bias. Tightening fringe detection is optional and would not close the gap.
+- **To fully close it** we'd need Tushar's GenX model (layer structure, roughness, density). Asking
+  him is the only remaining step — code side is done.
+
 ## Follow-ups
 1. ~~Confirm Gaussian RC fit.~~ **Done** — confirmed; RC default flipped to Gaussian.
 2. ~~Ask Tushar for XRR thickness.~~ **Done** — GenX ≈ 36 nm vs our ~40 nm (see above).
-3. Reconcile the ~4 nm XRR gap: re-check our fringe identification / critical-edge handling on
-   S25, and (if possible) compare against the GenX model parameters.
-4. **New (Tushar request): superlattice / heterostructure thickness.** Superlattice *period* Λ
-   is computable now from satellite-peak spacing via `xrdc.lattice.thicknessFromFringes` (same
-   `(N−1)λ/2(sinθ_N−sinθ_1)` math, fed satellite 2θ positions). Total stack thickness already
-   comes from XRR Kiessig (`analyzeFringes`). Per-layer thickness needs full Parratt/optical
-   modelling (GenX territory) — out of scope for fringe methods.
+3. ~~Reconcile the ~4 nm XRR gap.~~ **Done** — not a bug (see reconciliation above); only open
+   piece is getting GenX model params from Tushar.
+4. **Superlattice / heterostructure (Tushar request).** Implemented: `xrdc.lattice.superlatticePeriod`
+   (period Λ from satellite spacing) + tests + `demoSuperlattice.m`, synthetic-validated to 0.01%.
+   Still needs validation against a **real** superlattice θ-2θ scan — ask Tushar to send one.
+   Per-layer thickness needs full Parratt modelling (GenX territory) — out of scope.

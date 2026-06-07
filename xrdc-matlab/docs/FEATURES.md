@@ -89,8 +89,9 @@ _Last reconciled: 2026-06-05._
 - ✅ Rocking-curve FWHM — Tushar S25: matches to ~1% with Gaussian fit
 - ✅ XRR / Kiessig thickness — S25 XRR (found in `data/`) → 40.30 ± 0.44 nm (21 fringes);
       full `data/` sweep (37 files, 0 crashes) in `validation/DATA_SWEEP.md`
-- ⚠️ XRR — our ~40 nm (fringe spacing) vs Tushar's GenX fit ~36 nm (~11% high);
-      expected for fringe-spacing vs full Parratt model, but worth reconciling on S25
+- ✅ XRR — our ~40 nm (fringe spacing) vs Tushar's GenX fit ~36 nm reconciled: not a bug.
+      Thickness is flat vs low-angle cutoff (refraction ruled out); gap is the expected
+      fringe-spacing-vs-Parratt difference. Only GenX model params from Tushar would close it.
 - ⬜ RSM — no external reference checked yet
 
 ## Planned / wanted (from README, not started)
