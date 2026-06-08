@@ -43,19 +43,14 @@ function xrdcApp()
     grid.Padding       = [10 10 10 10];
     grid.BackgroundColor = T.bg;
 
-    % Branded header: crystal mark + wordmark in the splash palette
-    header = uigridlayout(grid, [1 2]);
+    % Branded header: crystal wordmark in the splash palette
+    header = uigridlayout(grid, [1 1]);
     header.Layout.Row = 1; header.Layout.Column = [1 2];
-    header.ColumnWidth = {165, '1x'};
-    header.ColumnSpacing = 10; header.Padding = [4 2 4 2];
+    header.Padding = [4 2 4 2];
     header.BackgroundColor = T.bg;
     uilabel(header, 'Text', '◆ XRDC', ...
         'FontName', T.font, 'FontSize', 24, 'FontWeight', 'bold', ...
         'FontColor', T.gold, 'VerticalAlignment', 'center');
-    subLbl = uilabel(header, 'Text', 'Scan Analyzer', ...
-        'FontName', T.font, 'FontSize', 14, 'FontColor', T.textDim, ...
-        'VerticalAlignment', 'center');
-    subLbl.Layout.Column = 2;
 
     % Top bar: load (primary, gold) + export + customize (secondary)
     topBar = uigridlayout(grid, [1 4]);
@@ -96,7 +91,11 @@ function xrdcApp()
         'BorderColor', T.edge);
     plotPanel.Layout.Row = 4; plotPanel.Layout.Column = 2;
     plotGrid = uigridlayout(plotPanel, [1 1]);
-    plotGrid.Padding = [6 6 6 6]; plotGrid.BackgroundColor = T.panel;
+    % WHITE plot card: the axes box is white, but the title/axis-label margin
+    % shows this background — keep it white so black title/labels stay visible
+    % (and the on-screen preview matches the exported figure). The dark panel
+    % frame around it makes it read as a card.
+    plotGrid.Padding = [6 6 6 6]; plotGrid.BackgroundColor = [1 1 1];
     ax = uiaxes(plotGrid);
 
     % Store state on the figure so callbacks can share it
@@ -308,16 +307,18 @@ function T = appTheme()
 %   surrounding "chrome" uses these colours. Chakra Petch (the splash font)
 %   is a web font unavailable to native uicomponents, so the chrome uses the
 %   system 'Segoe UI'; the splash itself keeps its web fonts via uihtml.
-    T.bg      = [0.039 0.067 0.141];   % #0A1124  window background
-    T.panel   = [0.078 0.137 0.247];   % #14233F  panels
-    T.panel2  = [0.055 0.094 0.180];   % deeper, for the results readout
-    T.btn     = [0.122 0.196 0.337];   % #1F3256  secondary buttons
-    T.edge    = [0.176 0.275 0.451];   % panel borders
-    T.text    = [0.863 0.945 1.000];   % #DCF1FF  icy primary text
-    T.textDim = [0.560 0.690 0.880];   % dimmed labels / subtitle
-    T.gold    = [1.000 0.800 0.200];   % #FFCC33  primary accent
-    T.blue    = [0.353 0.627 1.000];   % #5AA0FF  secondary accent
-    T.ink     = [0.039 0.067 0.141];   % dark text on the gold button
+    % Softened palette: muted slate-navy (not near-black) and a warm,
+    % de-neoned gold, for an easier-on-the-eyes look.
+    T.bg      = [0.106 0.129 0.184];   % #1B212F  window background
+    T.panel   = [0.141 0.169 0.231];   % #242B3B  panels
+    T.panel2  = [0.122 0.149 0.204];   % #1F2634  deeper, results readout
+    T.btn     = [0.196 0.235 0.318];   % #323C51  secondary buttons
+    T.edge    = [0.247 0.290 0.380];   % #3F4A61  soft panel borders
+    T.text    = [0.851 0.886 0.933];   % #D9E2EE  soft icy text
+    T.textDim = [0.557 0.604 0.702];   % #8E9AB3  dimmed labels
+    T.gold    = [0.882 0.741 0.420];   % #E1BD6B  soft warm gold accent
+    T.blue    = [0.490 0.651 0.851];   % #7DA6D9  soft blue accent
+    T.ink     = [0.106 0.129 0.184];   % dark text on the gold button
     T.font    = 'Segoe UI';
     T.mono    = 'Consolas';
 end
