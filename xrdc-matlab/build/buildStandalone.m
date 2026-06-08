@@ -20,9 +20,16 @@ function out = buildStandalone(opts)
 %   Name-Value options
 %     OutputDir (string)  Destination folder. Default: <repo>/build/standalone.
 %     AppName   (string)  Executable base name. Default: "XRDC".
-%     Embed     (logical) If true, package the MATLAB Runtime installer into
-%                         the output so peers don't download it separately
-%                         (much larger artifact). Default: false (web installer).
+%     Embed     (logical) If true, also build a one-double-click INSTALLER
+%                         (app + Runtime) under <OutputDir>/installer, named
+%                         <AppName>Installer.exe. Default: false (exe only).
+%     Offline   (logical) Only meaningful with Embed. false (default) → small
+%                         (~3 MB) "web" installer that downloads the matching
+%                         Runtime at install time (needs internet once, on the
+%                         target machine; auto version-match). true → fully
+%                         offline installer with the Runtime bundled (~2-4 GB);
+%                         requires the Runtime installer be cached first via
+%                         `compiler.runtime.download`.
 %     SingleFile (logical) If true (default), embed the CTF archive INSIDE the
 %                         exe for a single-file deliverable. If false, the code
 %                         ships as a companion XRDC.ctf that must travel next to
@@ -52,6 +59,7 @@ function out = buildStandalone(opts)
         opts.OutputDir  (1,1) string  = ""
         opts.AppName    (1,1) string  = "XRDC"
         opts.Embed      (1,1) logical = false
+        opts.Offline    (1,1) logical = false
         opts.SingleFile (1,1) logical = true
         opts.Verbose    (1,1) logical = true
     end
@@ -137,19 +145,39 @@ function out = buildStandalone(opts)
         rethrow(err);
     end
 
-    % --- Optionally wrap in an installer that bundles the MATLAB Runtime ---
+    % --- Optionally wrap in a one-double-click installer ---
     % compiler.build.* only produces the raw exe; Runtime packaging is a
-    % SEPARATE step via compiler.package.installer (the build call has no
-    % runtime option — passing one errors). RuntimeDelivery="installer"
-    % embeds the Runtime (large, offline); "web" fetches it at install time.
+    % SEPARATE step via compiler.package.installer. RuntimeDelivery="web"
+    % makes a small (~3 MB) installer that fetches the matching Runtime at
+    % install time; "installer" bundles the whole Runtime (~2-4 GB) for a
+    % fully-offline installer, but needs the Runtime installer cached first
+    % (compiler.runtime.download) or it errors with "cannot be found".
     if opts.Embed
-        if opts.Verbose
-            fprintf("Packaging installer with bundled MATLAB Runtime...\n");
+        if opts.Offline
+            delivery = "installer";
+        else
+            delivery = "web";
         end
-        compiler.package.installer(out, ...
-            "ApplicationName", char(opts.AppName), ...
-            "RuntimeDelivery", "installer", ...
-            "OutputDir",       char(fullfile(opts.OutputDir, "installer")));
+        insDir = char(fullfile(opts.OutputDir, "installer"));
+        if opts.Verbose
+            fprintf("Packaging installer (RuntimeDelivery=%s) -> %s\n", delivery, insDir);
+        end
+        try
+            compiler.package.installer(out, ...
+                "ApplicationName", char(opts.AppName), ...
+                "InstallerName",   char(opts.AppName + "Installer"), ...
+                "RuntimeDelivery", char(delivery), ...
+                "OutputDir",       insDir);
+        catch err
+            if delivery == "installer" && contains(err.message, "cannot be found")
+                error("xrdc:build:noRuntimeInstaller", ...
+                    "Offline installer needs the Runtime installer cached first. Run:\n" + ...
+                    "    compiler.runtime.download   (a one-time ~2-4 GB download)\n" + ...
+                    "then rebuild. Or drop Offline for a small web installer.\n" + ...
+                    "Original: %s", err.message);
+            end
+            rethrow(err);
+        end
     end
 
     if opts.Verbose
