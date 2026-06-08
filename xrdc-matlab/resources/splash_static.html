@@ -1,0 +1,111 @@
+<!-- @dsCard group="Brand" viewport="400x400" name="App splash — static cell" subtitle="400×400 — static unit cell in reciprocal-lattice grid" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>XRDC — Static splash</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: #060912; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .splash {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    background: radial-gradient(115% 100% at 50% 50%, #14233f 0%, #0a1124 52%, #060912 100%);
+  }
+  .splash::after { content: ""; position: absolute; inset: 0; border: 1px solid rgba(255,255,255,.06); pointer-events: none; }
+  svg { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+  <div class="splash" id="stage">
+    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="spot" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#dcf1ff" stop-opacity="1"/><stop offset="100%" stop-color="#dcf1ff" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="atomB" cx="38%" cy="32%" r="70%">
+          <stop offset="0%" stop-color="#eaf4ff"/><stop offset="55%" stop-color="#8fbcff"/><stop offset="100%" stop-color="#2e6fd6"/>
+        </radialGradient>
+        <radialGradient id="atomA" cx="38%" cy="32%" r="70%">
+          <stop offset="0%" stop-color="#fff4d6"/><stop offset="50%" stop-color="#ffcc33"/><stop offset="100%" stop-color="#e0900f"/>
+        </radialGradient>
+      </defs>
+      <g id="spots"></g>
+      <g id="cell"></g>
+    </svg>
+  </div>
+
+  <script>
+    const NS = 'http://www.w3.org/2000/svg';
+    const CX = 200, CY = 200, SCALE = 56, FOCAL = 4.6;
+    const AY = 0.62, AX = -0.46;   // fixed 3/4 view
+
+    // reciprocal-lattice spot field (static)
+    (function spots(){
+      const g = document.getElementById('spots');
+      const b1 = [26.8, 15.5], b2 = [-26.8, 15.5];
+      for (let i = -6; i <= 6; i++) for (let j = -6; j <= 6; j++) {
+        const x = CX + i*b1[0] + j*b2[0];
+        const y = CY + i*b1[1] + j*b2[1];
+        if (x < -6 || x > 406 || y < -6 || y > 406) continue;
+        const r2 = i*i + j*j;
+        const inten = Math.max(0, 0.5 - r2*0.022);
+        if (inten < 0.03) continue;
+        const halo = document.createElementNS(NS, 'circle');
+        halo.setAttribute('cx', x.toFixed(1)); halo.setAttribute('cy', y.toFixed(1));
+        halo.setAttribute('r', (1.6 + inten*4).toFixed(1)); halo.setAttribute('fill', 'url(#spot)');
+        halo.setAttribute('opacity', (inten*0.5).toFixed(3));
+        g.appendChild(halo);
+        const dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1));
+        dot.setAttribute('r', (0.8 + inten*1.4).toFixed(1)); dot.setAttribute('fill', '#dcf1ff');
+        dot.setAttribute('opacity', (0.18 + inten*0.7).toFixed(2));
+        g.appendChild(dot);
+      }
+    })();
+
+    // static cubic unit cell
+    const V = [];
+    for (const z of [-1,1]) for (const y of [-1,1]) for (const x of [-1,1]) V.push([x,y,z]);
+    const E = [[0,1],[1,3],[3,2],[2,0],[4,5],[5,7],[7,6],[6,4],[0,4],[1,5],[2,6],[3,7]];
+    const cell = document.getElementById('cell');
+
+    function project(p) {
+      const cy = Math.cos(AY), sy = Math.sin(AY), cx = Math.cos(AX), sx = Math.sin(AX);
+      let [x,y,z] = p;
+      let x1 = x*cy + z*sy, z1 = -x*sy + z*cy;
+      let y1 = y*cx - z1*sx, z2 = y*sx + z1*cx;
+      const f = FOCAL / (FOCAL - z2);
+      return { x: CX + x1*SCALE*f, y: CY - y1*SCALE*f, z: z2, f };
+    }
+    const P = V.map(project);
+
+    // edges
+    E.forEach(e => {
+      const a = P[e[0]], b = P[e[1]];
+      const l = document.createElementNS(NS,'line');
+      l.setAttribute('x1', a.x.toFixed(1)); l.setAttribute('y1', a.y.toFixed(1));
+      l.setAttribute('x2', b.x.toFixed(1)); l.setAttribute('y2', b.y.toFixed(1));
+      const depth = (a.z + b.z) / 2;
+      l.setAttribute('stroke', '#3f7fe0'); l.setAttribute('stroke-linecap', 'round');
+      l.setAttribute('stroke-width', (1.1 + 0.6*(depth+1.4)/2.8).toFixed(2));
+      l.setAttribute('opacity', (0.45 + 0.5*(depth+1.4)/2.8).toFixed(2));
+      cell.appendChild(l);
+    });
+    // body-centre B-site atom (amber)
+    const bc = project([0,0,0]);
+    const bAtom = document.createElementNS(NS,'circle');
+    bAtom.setAttribute('cx', bc.x.toFixed(1)); bAtom.setAttribute('cy', bc.y.toFixed(1));
+    bAtom.setAttribute('r', (5.4*bc.f).toFixed(2)); bAtom.setAttribute('fill', 'url(#atomA)');
+    cell.appendChild(bAtom);
+    // corner cations (blue)
+    P.forEach(p => {
+      const c = document.createElementNS(NS,'circle');
+      c.setAttribute('cx', p.x.toFixed(1)); c.setAttribute('cy', p.y.toFixed(1));
+      c.setAttribute('r', (3.4*p.f).toFixed(2)); c.setAttribute('fill', 'url(#atomB)');
+      c.setAttribute('opacity', (0.7 + 0.3*(p.z+1.4)/2.8).toFixed(2));
+      cell.appendChild(c);
+    });
+  </script>
+</body>
+</html>
