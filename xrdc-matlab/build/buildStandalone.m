@@ -100,6 +100,17 @@ function out = buildStandalone(opts)
         extraFiles(end+1, 1) = splashFile;
     end
 
+    % Runtime startup splash: the static image the exe shows WHILE the MATLAB
+    % Runtime initializes (before any app code — so it can't be the animated
+    % HTML). We use a still frame of the animated splash so the two read as one
+    % continuous launch screen instead of a stock MATLAB splash. Regenerate
+    % with build/makeStartupSplash.m if the splash artwork changes.
+    startupSplash = fullfile(repoRoot, "resources", "splash_startup.png");
+    splashArgs = {};
+    if isfile(startupSplash)
+        splashArgs = {"ExecutableSplashScreen", char(startupSplash)};
+    end
+
     if opts.Verbose
         fprintf("Compiling %s -> %s\n", appFile, opts.OutputDir);
         fprintf("  bundling %d data file(s); +xrdc resolved by dependency analysis\n", ...
@@ -113,7 +124,8 @@ function out = buildStandalone(opts)
             "AdditionalFiles",  cellstr([pkgDir; extraFiles]), ...
             "OutputDir",        char(opts.OutputDir), ...
             "EmbedArchive",     matlab.lang.OnOffSwitchState(opts.SingleFile), ...
-            "Verbose",          matlab.lang.OnOffSwitchState(opts.Verbose));
+            "Verbose",          matlab.lang.OnOffSwitchState(opts.Verbose), ...
+            splashArgs{:});
     catch err
         if contains(err.message, "being used by another process") && opts.SingleFile
             error("xrdc:build:fileLocked", ...
