@@ -165,7 +165,7 @@ function onLoadScan(fig)
 
     st.infoLbl.Text = sprintf('  %s     |     detected: %s     |     %d points', ...
         file, upper(char(st.detectedType)), numel(st.scan.twoTheta));
-    st.infoLbl.FontColor = [0 0 0];
+    st.infoLbl.FontColor = appTheme().text;   % icy text on the dark chrome
     st.exportBtn.Enable = 'on';
     st.customizeBtn.Enable = 'on';
     fig.UserData = st;
