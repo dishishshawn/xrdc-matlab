@@ -22,54 +22,81 @@ function xrdcApp()
     splashFig = xrdc.ui.showSplash();
     splashStart = tic;
 
-    fig = uifigure('Name', 'XRDC Scan Analyzer', 'Position', [100 100 1200 750], ...
-        'Visible', 'off');
-    % Force a light theme so the hardcoded plot/label colors stay legible —
-    % otherwise the app follows the OS dark mode and text goes low-contrast.
-    % Theme is R2025a+; guard so older releases just keep their default.
+    T = appTheme();
+
+    fig = uifigure('Name', 'XRDC Scan Analyzer', 'Position', [100 100 1240 780], ...
+        'Visible', 'off', 'Color', T.bg);
+    % Keep a light THEME so the plot axes default to white (publication-ready);
+    % the dark crystalline "chrome" below is layered on with explicit colours,
+    % so the OS dark mode can't wash out the plot. Theme is R2025a+; guard so
+    % older releases keep their default.
     try
         fig.Theme = 'light';
     catch
     end
-    grid = uigridlayout(fig, [3 2]);
-    grid.RowHeight    = {40, 32, '1x'};
-    grid.ColumnWidth  = {300, '1x'};
-    grid.RowSpacing   = 6;
-    grid.ColumnSpacing = 6;
-    grid.Padding      = [8 8 8 8];
 
-    % Top bar: load + export
+    grid = uigridlayout(fig, [4 2]);
+    grid.RowHeight     = {54, 40, 26, '1x'};
+    grid.ColumnWidth   = {310, '1x'};
+    grid.RowSpacing    = 8;
+    grid.ColumnSpacing = 8;
+    grid.Padding       = [10 10 10 10];
+    grid.BackgroundColor = T.bg;
+
+    % Branded header: crystal mark + wordmark in the splash palette
+    header = uigridlayout(grid, [1 2]);
+    header.Layout.Row = 1; header.Layout.Column = [1 2];
+    header.ColumnWidth = {165, '1x'};
+    header.ColumnSpacing = 10; header.Padding = [4 2 4 2];
+    header.BackgroundColor = T.bg;
+    uilabel(header, 'Text', '◆ XRDC', ...
+        'FontName', T.font, 'FontSize', 24, 'FontWeight', 'bold', ...
+        'FontColor', T.gold, 'VerticalAlignment', 'center');
+    subLbl = uilabel(header, 'Text', 'Scan Analyzer', ...
+        'FontName', T.font, 'FontSize', 14, 'FontColor', T.textDim, ...
+        'VerticalAlignment', 'center');
+    subLbl.Layout.Column = 2;
+
+    % Top bar: load (primary, gold) + export + customize (secondary)
     topBar = uigridlayout(grid, [1 4]);
-    topBar.Layout.Row = 1; topBar.Layout.Column = [1 2];
-    topBar.ColumnWidth = {130, 140, 150, '1x'};
-    topBar.Padding = [0 0 0 0];
+    topBar.Layout.Row = 2; topBar.Layout.Column = [1 2];
+    topBar.ColumnWidth = {150, 160, 170, '1x'};
+    topBar.ColumnSpacing = 8; topBar.Padding = [0 0 0 0];
+    topBar.BackgroundColor = T.bg;
     uibutton(topBar, 'Text', 'Load Scan...', ...
-        'FontSize', 13, 'FontWeight', 'bold', ...
+        'FontName', T.font, 'FontSize', 13, 'FontWeight', 'bold', ...
+        'BackgroundColor', T.gold, 'FontColor', T.ink, ...
         'ButtonPushedFcn', @(~,~) onLoadScan(fig));
     exportBtn = uibutton(topBar, 'Text', 'Export 600 dpi...', ...
-        'FontSize', 13, ...
-        'Enable', 'off', ...
+        'FontName', T.font, 'FontSize', 13, 'Enable', 'off', ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
         'ButtonPushedFcn', @(~,~) onExport(fig));
     customizeBtn = uibutton(topBar, 'Text', 'Customize Plot...', ...
-        'FontSize', 13, ...
-        'Enable', 'off', ...
+        'FontName', T.font, 'FontSize', 13, 'Enable', 'off', ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
         'ButtonPushedFcn', @(~,~) onCustomizePlot(fig));
 
     % Info strip
     infoLbl = uilabel(grid, 'Text', '  No scan loaded. Click "Load Scan..." to begin.', ...
-        'FontSize', 12, 'FontColor', [0.4 0.4 0.4], ...
+        'FontName', T.font, 'FontSize', 12, 'FontColor', T.textDim, ...
         'HorizontalAlignment', 'left');
-    infoLbl.Layout.Row = 2; infoLbl.Layout.Column = [1 2];
+    infoLbl.Layout.Row = 3; infoLbl.Layout.Column = [1 2];
 
     % Left: analysis panel
-    leftPanel = uipanel(grid, 'Title', 'Analysis', 'FontSize', 13, 'FontWeight', 'bold');
-    leftPanel.Layout.Row = 3; leftPanel.Layout.Column = 1;
+    leftPanel = uipanel(grid, 'Title', 'Analysis', ...
+        'FontName', T.font, 'FontSize', 13, 'FontWeight', 'bold', ...
+        'BackgroundColor', T.panel, 'ForegroundColor', T.gold, ...
+        'BorderColor', T.edge);
+    leftPanel.Layout.Row = 4; leftPanel.Layout.Column = 1;
 
-    % Right: plot
-    plotPanel = uipanel(grid, 'Title', 'Preview', 'FontSize', 13, 'FontWeight', 'bold');
-    plotPanel.Layout.Row = 3; plotPanel.Layout.Column = 2;
+    % Right: plot preview (uiaxes stays white → publication figure on a card)
+    plotPanel = uipanel(grid, 'Title', 'Preview', ...
+        'FontName', T.font, 'FontSize', 13, 'FontWeight', 'bold', ...
+        'BackgroundColor', T.panel, 'ForegroundColor', T.gold, ...
+        'BorderColor', T.edge);
+    plotPanel.Layout.Row = 4; plotPanel.Layout.Column = 2;
     plotGrid = uigridlayout(plotPanel, [1 1]);
-    plotGrid.Padding = [4 4 4 4];
+    plotGrid.Padding = [6 6 6 6]; plotGrid.BackgroundColor = T.panel;
     ax = uiaxes(plotGrid);
 
     % Store state on the figure so callbacks can share it
@@ -211,6 +238,7 @@ end
 % =====================================================================
 function buildAnalysisPanel(fig)
     st = fig.UserData;
+    T  = appTheme();
     delete(st.leftPanel.Children);
 
     g = uigridlayout(st.leftPanel, [14 2]);
@@ -218,6 +246,7 @@ function buildAnalysisPanel(fig)
     g.ColumnWidth = {110, '1x'};
     g.RowSpacing  = 4;
     g.Padding     = [6 6 6 6];
+    g.BackgroundColor = T.panel;
 
     row = 1;
     t = char(lower(string(st.detectedType)));
@@ -243,16 +272,19 @@ function buildAnalysisPanel(fig)
     end
 
     % Results area fills the rest
-    hdr = uilabel(g, 'Text', 'Results', 'FontWeight', 'bold');
+    hdr = uilabel(g, 'Text', 'Results', 'FontWeight', 'bold', ...
+        'FontName', T.font, 'FontColor', T.gold);
     hdr.Layout.Row = 8; hdr.Layout.Column = [1 2];
-    ta = uitextarea(g, 'Editable', 'off', 'FontName', 'Consolas', 'FontSize', 11);
+    ta = uitextarea(g, 'Editable', 'off', 'FontName', T.mono, 'FontSize', 11, ...
+        'BackgroundColor', T.panel2, 'FontColor', T.text);
     ta.Layout.Row = [9 14]; ta.Layout.Column = [1 2];
     st.resultsArea = ta;
     fig.UserData = st;
 end
 
 function row = addEdit(g, row, label, default, cb)
-    lbl = uilabel(g, 'Text', label);
+    T = appTheme();
+    lbl = uilabel(g, 'Text', label, 'FontName', T.font, 'FontColor', T.text);
     lbl.Layout.Row = row; lbl.Layout.Column = 1;
     ef = uieditfield(g, 'Value', default, ...
         'ValueChangedFcn', @(src, ~) cb(src.Value));
@@ -261,12 +293,33 @@ function row = addEdit(g, row, label, default, cb)
 end
 
 function row = addDrop(g, row, label, items, default, cb)
-    lbl = uilabel(g, 'Text', label);
+    T = appTheme();
+    lbl = uilabel(g, 'Text', label, 'FontName', T.font, 'FontColor', T.text);
     lbl.Layout.Row = row; lbl.Layout.Column = 1;
     dd = uidropdown(g, 'Items', items, 'Value', default, ...
         'ValueChangedFcn', @(src, ~) cb(src.Value));
     dd.Layout.Row = row; dd.Layout.Column = 2;
     row = row + 1;
+end
+
+function T = appTheme()
+%APPTHEME  Dark crystalline UI palette, derived from the launch splash.
+%   The plot axes deliberately stay white (publication-ready); only the
+%   surrounding "chrome" uses these colours. Chakra Petch (the splash font)
+%   is a web font unavailable to native uicomponents, so the chrome uses the
+%   system 'Segoe UI'; the splash itself keeps its web fonts via uihtml.
+    T.bg      = [0.039 0.067 0.141];   % #0A1124  window background
+    T.panel   = [0.078 0.137 0.247];   % #14233F  panels
+    T.panel2  = [0.055 0.094 0.180];   % deeper, for the results readout
+    T.btn     = [0.122 0.196 0.337];   % #1F3256  secondary buttons
+    T.edge    = [0.176 0.275 0.451];   % panel borders
+    T.text    = [0.863 0.945 1.000];   % #DCF1FF  icy primary text
+    T.textDim = [0.560 0.690 0.880];   % dimmed labels / subtitle
+    T.gold    = [1.000 0.800 0.200];   % #FFCC33  primary accent
+    T.blue    = [0.353 0.627 1.000];   % #5AA0FF  secondary accent
+    T.ink     = [0.039 0.067 0.141];   % dark text on the gold button
+    T.font    = 'Segoe UI';
+    T.mono    = 'Consolas';
 end
 
 % =====================================================================
@@ -637,13 +690,17 @@ function onCustomizePlot(fig)
     st = fig.UserData;
     if isempty(st.scan) && isempty(st.rsmScans), return, end
     s = st.style;
+    T = appTheme();
 
-    d = uifigure('Name', 'Customize Plot', 'Position', [220 160 380 590]);
+    d = uifigure('Name', 'Customize Plot', 'Position', [220 160 380 590], ...
+        'Color', T.bg);
+    try, d.Theme = 'light'; catch, end
     g = uigridlayout(d, [17 2]);
     g.RowHeight   = [repmat({28}, 1, 16), {36}];
     g.ColumnWidth = {150, '1x'};
     g.Padding     = [12 12 12 12];
     g.RowSpacing  = 5;
+    g.BackgroundColor = T.bg;
 
     f = struct(); r = 1;
     [f.title, r]     = dlgEdit(g, r, 'Title (blank=auto)', s.title);
@@ -664,15 +721,21 @@ function onCustomizePlot(fig)
     [f.exportH, r]   = dlgEdit(g, r, 'Export height (in)', s.exportH);
 
     note = uilabel(g, 'Text', 'Blank / "auto" keeps the default.', ...
-        'FontAngle', 'italic', 'FontColor', [0.45 0.45 0.45]);
+        'FontAngle', 'italic', 'FontName', T.font, 'FontColor', T.textDim);
     note.Layout.Row = 16; note.Layout.Column = [1 2];
 
     btns = uigridlayout(g, [1 3], 'Padding', [0 0 0 0]);
     btns.Layout.Row = 17; btns.Layout.Column = [1 2];
-    uibutton(btns, 'Text', 'Apply', 'FontWeight', 'bold', ...
+    btns.BackgroundColor = T.bg;
+    uibutton(btns, 'Text', 'Apply', 'FontWeight', 'bold', 'FontName', T.font, ...
+        'BackgroundColor', T.gold, 'FontColor', T.ink, ...
         'ButtonPushedFcn', @(~,~) applyDlg());
-    uibutton(btns, 'Text', 'Reset', 'ButtonPushedFcn', @(~,~) resetDlg());
-    uibutton(btns, 'Text', 'Close', 'ButtonPushedFcn', @(~,~) close(d));
+    uibutton(btns, 'Text', 'Reset', 'FontName', T.font, ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
+        'ButtonPushedFcn', @(~,~) resetDlg());
+    uibutton(btns, 'Text', 'Close', 'FontName', T.font, ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
+        'ButtonPushedFcn', @(~,~) close(d));
 
     function applyDlg()
         ns = defaultStyle();
@@ -693,7 +756,8 @@ function onCustomizePlot(fig)
 end
 
 function [h, row] = dlgEdit(g, row, label, val)
-    lbl = uilabel(g, 'Text', label);
+    T = appTheme();
+    lbl = uilabel(g, 'Text', label, 'FontName', T.font, 'FontColor', T.text);
     lbl.Layout.Row = row; lbl.Layout.Column = 1;
     h = uieditfield(g, 'Value', char(string(val)));
     h.Layout.Row = row; h.Layout.Column = 2;
@@ -701,7 +765,8 @@ function [h, row] = dlgEdit(g, row, label, val)
 end
 
 function [h, row] = dlgDrop(g, row, label, items, val)
-    lbl = uilabel(g, 'Text', label);
+    T = appTheme();
+    lbl = uilabel(g, 'Text', label, 'FontName', T.font, 'FontColor', T.text);
     lbl.Layout.Row = row; lbl.Layout.Column = 1;
     h = uidropdown(g, 'Items', items, 'Value', char(string(val)));
     h.Layout.Row = row; h.Layout.Column = 2;
