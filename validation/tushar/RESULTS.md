@@ -63,12 +63,34 @@ Investigated the ~4 nm gap (our ~40 nm fringe-spacing vs Tushar's GenX ~36 nm).
 - **To fully close it** we'd need Tushar's GenX model (layer structure, roughness, density). Asking
   him is the only remaining step — code side is done.
 
+## S31 heterostructure XRR vs GenX (2026-06-08) — validated against a real GenX model
+Tushar sent a **PTO-on-SRO-on-STO heterostructure** (S31) raw data **plus his GenX `.hgx`**
+(`input/Heterostructure raw data/`). Read his fitted layer model straight from the GenX HDF5
+(`/current/parameters`): **PTO (Film_2) = 100.7 nm, SRO (Film1) = 29.6 nm**, thin interfaces,
+**total stack ≈ 132.6 nm** (thicknesses stored in Å).
+
+| Quantity | GenX (Tushar) | Our `analyzeFringes` | Match |
+| -------- | ------------- | -------------------- | ----- |
+| SRO layer (Film1) | 29.6 nm | **29.3 nm** (quad) / 30.9 (FFT), 15 fringes | **~1%** ✓ |
+| PTO layer (Film_2) | 100.7 nm | not resolved | — |
+| Total stack | 132.6 nm | not resolved | — |
+
+**Our single-dominant-period Kiessig recovers the SRO layer to ~1%.** The XRR clearly shows
+**two beating fringe frequencies** — coarse (~0.285°, the 29.6 nm SRO, which our method locks onto)
+with **finer oscillations riding on top (the ~100 nm PTO)**; see `output/S31_XRR_vs_genx.png`.
+Resolving *both* layers + the total needs full Parratt modelling (GenX) — confirming the documented
+limit: fringe-spacing gives one dominant thickness, not a multilayer solution. θ-2θ shows the STO
+substrate 001/002/003 (22.78/46.49/72.60°); film peaks are weak shoulders.
+
+This is an independent, real-data confirmation that the XRR path is sound (matches a GenX-fitted
+layer to ~1%), complementing the S25 single-film reconciliation above.
+
 ## Follow-ups
 1. ~~Confirm Gaussian RC fit.~~ **Done** — confirmed; RC default flipped to Gaussian.
 2. ~~Ask Tushar for XRR thickness.~~ **Done** — GenX ≈ 36 nm vs our ~40 nm (see above).
-3. ~~Reconcile the ~4 nm XRR gap.~~ **Done** — not a bug (see reconciliation above); only open
-   piece is getting GenX model params from Tushar.
-4. **Superlattice / heterostructure (Tushar request).** Implemented: `xrdc.lattice.superlatticePeriod`
-   (period Λ from satellite spacing) + tests + `demoSuperlattice.m`, synthetic-validated to 0.01%.
-   Still needs validation against a **real** superlattice θ-2θ scan — ask Tushar to send one.
-   Per-layer thickness needs full Parratt modelling (GenX territory) — out of scope.
+3. ~~Reconcile the ~4 nm XRR gap.~~ **Done** — not a bug; and the S31 GenX comparison directly
+   confirms our fringe-spacing recovers a real fitted layer to ~1%.
+4. **Superlattice period feature.** `xrdc.lattice.superlatticePeriod` is synthetic-validated to
+   0.01%. S31 is a *heterostructure* (no periodic satellites), so it doesn't exercise that path —
+   the satellite-period feature still awaits a real **periodic superlattice** scan if one comes.
+   Per-layer heterostructure thickness needs full Parratt modelling (GenX) — out of scope.
