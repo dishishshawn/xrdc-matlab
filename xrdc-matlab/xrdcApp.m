@@ -102,6 +102,8 @@ function xrdcApp()
     st = struct();
     st.scan        = [];
     st.rsmScans    = [];
+    st.overlayScan = [];      % 2nd RC for the film-vs-substrate overlay
+    st.overlayPath = '';
     st.filePath    = '';
     st.detectedType = "";
     st.params      = struct();
@@ -141,6 +143,8 @@ function onLoadScan(fig)
     st.params   = struct();   % reset per-scan parameters
     st.style    = defaultStyle();   % reset plot-style overrides per scan
     st.rsmScans = [];
+    st.overlayScan = [];      % drop any overlay from a previous scan
+    st.overlayPath = '';
 
     dlg = uiprogressdlg(fig, 'Title', 'Loading scan', ...
         'Message', sprintf('Reading %s ...', file), ...
@@ -232,6 +236,50 @@ function onParamChange(fig, name, value)
     runAnalysis(fig);
 end
 
+function onRcOverlayToggle(fig, src)
+%ONRCOVERLAYTOGGLE  Checkbox handler for the film-vs-substrate RC overlay.
+%   Turning it on prompts for the complementary RC (asks for the film when a
+%   substrate is loaded, and vice-versa, inferred from the loaded filename).
+%   Cancelling the file dialog reverts the checkbox. Turning it off drops the
+%   overlay. Either way the rocking-curve analysis re-renders.
+    st = fig.UserData;
+
+    if src.Value
+        [~, baseName] = fileparts(st.filePath);
+        want = complementaryRcRole(baseName);   % "film" / "substrate" / "corresponding"
+        [file, path] = uigetfile({ ...
+            '*.txt;*.xrdml;*.xrdc;*.x00', 'XRD scan files (*.txt, *.xrdml)'; ...
+            '*.*', 'All files (*.*)'}, ...
+            sprintf('Select the %s rocking curve to overlay', want));
+        if isequal(file, 0)
+            src.Value = false;          % user cancelled → leave overlay off
+            return
+        end
+        try
+            ov = xrdc.io.readScan(fullfile(path, file));
+        catch ME
+            uialert(fig, sprintf('Could not read the overlay RC:\n\n%s', ME.message), ...
+                'Overlay error', 'Icon', 'error');
+            src.Value = false;
+            return
+        end
+        st.overlayScan      = ov;
+        st.overlayPath      = fullfile(path, file);
+        st.params.rcOverlay = true;
+    else
+        st.overlayScan      = [];
+        st.overlayPath      = '';
+        st.params.rcOverlay = false;
+    end
+    fig.UserData = st;
+
+    dlg = uiprogressdlg(fig, 'Title', 'Updating', ...
+        'Message', 'Rendering overlay ...', 'Indeterminate', 'on', 'Cancelable', 'off');
+    closeDlg = onCleanup(@() close(dlg));
+    drawnow
+    runAnalysis(fig);
+end
+
 % =====================================================================
 % Panel construction per scan type
 % =====================================================================
@@ -254,6 +302,9 @@ function buildAnalysisPanel(fig)
             row = addEdit (g, row, 'Fit window (°)', '0.5', @(v) onParamChange(fig, 'fitWindow', v));
             row = addDrop (g, row, 'Shape', {'gauss','lorentz','pseudoVoigt'}, 'gauss', ...
                                                       @(v) onParamChange(fig, 'shape',     v));
+            overlayOn = isfield(st.params, 'rcOverlay') && st.params.rcOverlay;
+            row = addCheck(g, row, 'Overlay 2nd RC (film/sub)', overlayOn, ...
+                                                      @(src) onRcOverlayToggle(fig, src));
         case 'twothetaomega'
             row = addEdit (g, row, 'Min prom (%)',   '5',   @(v) onParamChange(fig, 'promPct',   v));
         case 'xrr'
@@ -298,6 +349,15 @@ function row = addDrop(g, row, label, items, default, cb)
     dd = uidropdown(g, 'Items', items, 'Value', default, ...
         'ValueChangedFcn', @(src, ~) cb(src.Value));
     dd.Layout.Row = row; dd.Layout.Column = 2;
+    row = row + 1;
+end
+
+function row = addCheck(g, row, label, value, cb)
+    T = appTheme();
+    chk = uicheckbox(g, 'Text', label, 'Value', value, ...
+        'FontName', T.font, 'FontColor', T.text, ...
+        'ValueChangedFcn', @(src, ~) cb(src));
+    chk.Layout.Row = row; chk.Layout.Column = [1 2];
     row = row + 1;
 end
 
@@ -391,6 +451,18 @@ function runRockingCurve(fig)
     st   = fig.UserData;
     scan = st.scan;    ax = st.ax;
 
+    w     = getNum(st.params, 'fitWindow', 0.5);
+    shape = getStr(st.params, 'shape',    'gauss');
+
+    % Overlay mode: compare a film RC against its substrate RC on one set of
+    % normalized, peak-centered axes — the standard deposition-quality check.
+    overlayOn = isfield(st, 'overlayScan') && ~isempty(st.overlayScan) ...
+        && isfield(st.params, 'rcOverlay') && st.params.rcOverlay;
+    if overlayOn
+        runRockingCurveOverlay(fig, w, shape);
+        return
+    end
+
     pk = xrdc.peaks.findPeaks(scan, 'MinProminence', max(scan.counts) * 0.05);
     semilogy(ax, scan.twoTheta, max(scan.counts, 1), '-', 'Color', [0.1 0.4 0.8], 'LineWidth', 1.5);
     stylePubAxes(ax, '\omega (°)', 'Counts', '');
@@ -401,9 +473,6 @@ function runRockingCurve(fig)
     end
 
     [~, idx] = max([pk.counts]); pkMain = pk(idx);
-
-    w     = getNum(st.params, 'fitWindow', 0.5);
-    shape = getStr(st.params, 'shape',    'gauss');
     window = [pkMain.twoTheta - w, pkMain.twoTheta + w];
 
     fit = xrdc.peaks.fitPeak(scan, window, 'Shape', string(shape));
@@ -440,6 +509,107 @@ function runRockingCurve(fig)
         sprintf('Other shapes: %s', strjoin(cellstr(xcheck), '   ')), ...
         '', ...
         sprintf('Fit window: ±%.3f° around peak', w)});
+end
+
+function runRockingCurveOverlay(fig, w, shape)
+%RUNROCKINGCURVEOVERLAY  Film vs. substrate rocking curves on shared axes.
+%   Each curve is normalized to its own peak and centered on its own fitted
+%   ω₀, so the comparison is purely of mosaic width (FWHM). Substrate renders
+%   black, film red (matching the lab's published figure convention); the
+%   legend carries both FWHMs and the results panel the FWHM ratio.
+    st = fig.UserData;  ax = st.ax;
+
+    [aFit, aOk] = rcFit(st.scan,        w, shape);
+    [bFit, bOk] = rcFit(st.overlayScan, w, shape);
+    if ~aOk || ~bOk
+        writeResults(fig, {'Could not fit a peak in one of the rocking curves.', ...
+            'Try widening the fit window or check the overlay file.'});
+        return
+    end
+
+    [~, aName] = fileparts(st.filePath);
+    [~, bName] = fileparts(st.overlayPath);
+    [aLabel, aColor] = rcRoleStyle(aName, 1);
+    [bLabel, bColor] = rcRoleStyle(bName, 2);
+
+    cla(ax); hold(ax, 'on');
+    plotRcNormalized(ax, st.scan,        aFit.twoTheta, aColor);
+    plotRcNormalized(ax, st.overlayScan, bFit.twoTheta, bColor);
+    hold(ax, 'off');
+    set(ax, 'YScale', 'log');
+    stylePubAxes(ax, '\Delta\omega (°)', 'Normalized intensity', 'Rocking-curve overlay');
+
+    lg = legend(ax, { ...
+        sprintf('%s — FWHM %.1f″', aLabel, aFit.fwhm * 3600), ...
+        sprintf('%s — FWHM %.1f″', bLabel, bFit.fwhm * 3600)}, ...
+        'Location', 'northeast');
+    lg.TextColor = [0 0 0]; lg.Box = 'on';
+
+    ratio = max(aFit.fwhm, bFit.fwhm) / max(min(aFit.fwhm, bFit.fwhm), eps);
+    writeResults(fig, { ...
+        'RC overlay (each normalized & centered on its peak):', '', ...
+        sprintf('%-10s  ω₀ = %8.4f°   FWHM = %.4f° (%.1f″)', ...
+            aLabel, aFit.twoTheta, aFit.fwhm, aFit.fwhm * 3600), ...
+        sprintf('%-10s  ω₀ = %8.4f°   FWHM = %.4f° (%.1f″)', ...
+            bLabel, bFit.twoTheta, bFit.fwhm, bFit.fwhm * 3600), ...
+        '', ...
+        sprintf('FWHM ratio (broad/narrow) = %.2f', ratio), ...
+        sprintf('Peak offset Δω₀          = %.4f°', aFit.twoTheta - bFit.twoTheta), ...
+        '', ...
+        sprintf('Base    : %s', aName), ...
+        sprintf('Overlay : %s', bName), ...
+        sprintf('Shape: %s   Fit window: ±%.3f°', shape, w)});
+end
+
+function [fit, ok] = rcFit(scan, w, shape)
+%RCFIT  Fit the dominant rocking-curve peak; ok=false if none is found.
+    ok  = false;
+    fit = struct('twoTheta', NaN, 'fwhm', NaN);
+    pk  = xrdc.peaks.findPeaks(scan, 'MinProminence', max(scan.counts) * 0.05);
+    if isempty(pk), return, end
+    [~, idx] = max([pk.counts]);
+    window   = [pk(idx).twoTheta - w, pk(idx).twoTheta + w];
+    try
+        fit = xrdc.peaks.fitPeak(scan, window, 'Shape', string(shape));
+        ok  = true;
+    catch
+        ok  = false;
+    end
+end
+
+function plotRcNormalized(ax, scan, omega0, color)
+%PLOTRCNORMALIZED  One RC, peak-normalized and centered on omega0 (log-safe).
+    dw = scan.twoTheta - omega0;
+    yn = double(scan.counts) / max(double(scan.counts));
+    yn(yn <= 0) = NaN;                       % keep the log axis clean
+    plot(ax, dw, yn, '-', 'Color', color, 'LineWidth', 1.4);
+end
+
+function want = complementaryRcRole(name)
+%COMPLEMENTARYRCROLE  What to ask the user to import, given the loaded file.
+    n = lower(string(name));
+    if contains(n, "film")
+        want = 'substrate';
+    elseif contains(n, "sub")
+        want = 'film';
+    else
+        want = 'corresponding';
+    end
+end
+
+function [label, color] = rcRoleStyle(name, ordinal)
+%RCROLESTYLE  Map a filename to a (label, colour): substrate→black, film→red.
+%   Falls back to a generic "RC <ordinal>" with a distinct colour when the
+%   role can't be inferred from the filename.
+    n = lower(string(name));
+    if contains(n, "film")
+        label = "Film";       color = [0.85 0.20 0.20];
+    elseif contains(n, "sub")
+        label = "Substrate";  color = [0.00 0.00 0.00];
+    else
+        label = sprintf("RC %d", ordinal);
+        if ordinal == 1, color = [0.10 0.40 0.80]; else, color = [0.85 0.20 0.20]; end
+    end
 end
 
 function runThetaTwoTheta(fig)

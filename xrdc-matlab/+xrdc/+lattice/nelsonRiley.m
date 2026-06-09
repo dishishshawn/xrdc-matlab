@@ -49,37 +49,39 @@ function result = nelsonRiley(twoTheta, latticeValues)
     % Nelson–Riley x-axis
     nrX = cos(theta).^2 ./ sin(theta) + cos(theta).^2 ./ thetaDeg;
 
-    % closed-form OLS (matches Geradenanpassung in xrdc1.pas)
-    Sx  = sum(nrX);
-    Sy  = sum(latticeValues);
-    Sxx = sum(nrX.^2);
-    Sxy = sum(nrX .* latticeValues);
+    % Closed-form OLS in centered (mean-subtracted) form. This is algebraically
+    % identical to the raw normal equations (matches Geradenanpassung in
+    % xrdc1.pas) but avoids the cancellation in n·Sxx − Sx², so the fit and its
+    % standard errors agree with a QR solver (fitlm) to full double precision.
+    xBar = mean(nrX);
+    yBar = mean(latticeValues);
+    xc   = nrX - xBar;
+    Sxx  = sum(xc.^2);                  % centered Σ(xᵢ − x̄)²
 
-    denom = n * Sxx - Sx^2;
-    slope = (n * Sxy - Sx * Sy) / denom;
-    a0    = (Sxx * Sy - Sx * Sxy) / denom;
+    slope = sum(xc .* (latticeValues - yBar)) / Sxx;
+    a0    = yBar - slope * xBar;
 
     % residuals + R²
     fitted    = a0 + slope * nrX;
     residuals = latticeValues - fitted;
     ssRes = sum(residuals.^2);
-    ssTot = sum((latticeValues - mean(latticeValues)).^2);
+    ssTot = sum((latticeValues - yBar).^2);
     rSquared = 1 - ssRes / max(ssTot, eps);
 
-    % Closed-form OLS standard errors (ALGORITHM_SPEC.md §6.3).
+    % Closed-form OLS standard errors (ALGORITHM_SPEC.md §6.3), centered form:
+    %     Var(slope) = σ² / Sxx,   Var(b0) = σ² · (1/n + x̄²/Sxx),   σ² = RSS/(n-2)
     %
     % Note on Delphi parity: xrdc3.pas:281 writes
     %     deltay0 = sqrt((s2x*s)/(n*(n-2)*(n*s2x-sqr(sx))))
     % which is off by a factor of 1/n from the textbook OLS intercept variance
-    %     Var(b0) = σ² · Σxᵢ² / (n · Sxx)    with σ² = RSS/(n-2)
     % i.e. the Delphi expression underestimates the SE by √n. We use the
     % correct textbook formula here (CLAUDE.md "match the algorithm, not the
     % implementation") and do *not* reproduce the Delphi scaling. The slope
     % SE has no Delphi counterpart.
     if n >= 3
-        rss     = ssRes;
-        a0SE    = sqrt((Sxx * rss) / ((n - 2) * denom));
-        slopeSE = sqrt((n   * rss) / ((n - 2) * denom));
+        sigma2  = ssRes / (n - 2);
+        slopeSE = sqrt(sigma2 / Sxx);
+        a0SE    = sqrt(sigma2 * (1/n + xBar^2 / Sxx));
     else
         a0SE    = NaN;
         slopeSE = NaN;

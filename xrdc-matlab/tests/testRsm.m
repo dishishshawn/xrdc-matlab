@@ -294,6 +294,10 @@ function testPlotRsmReturnsHandles(testCase)
     scans  = arrayfun(@(w) makeSlice((30:0.5:35).', w, lambda), omegas);
     for i = 1:numel(scans)
         scans(i).scanType = "twoThetaOmega";
+        % Give each slice a Gaussian peak so the contoured intensity grid is
+        % non-constant — a flat grid makes contourf warn "constant ZData".
+        tt = scans(i).twoTheta;
+        scans(i).counts = 100 + 1e4 * exp(-((tt - 32.5).^2) / (2 * 0.6^2));
     end
 
     h = xrdc.plot.plotRsm(scans, 'Lambda', lambda);
