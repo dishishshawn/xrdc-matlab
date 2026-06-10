@@ -121,3 +121,92 @@ function testGroupToleranceRejects(tc)
     tc.verifyEmpty(S);
     tc.verifyEqual(sort(singles(:).'), [1 2]);
 end
+
+% ---------- identifyMaterial: synthetic known-answer ----------
+
+function tt = stoPlusFilmPeaks(cFilm, ordersFilm)
+%Helper (not a test): STO substrate (001..004) + film series 2-thetas.
+    lambda = 1.5406;
+    ttSub  = xrdc.lattice.dToTwoTheta(3.905 ./ (1:4), lambda);
+    ttFilm = xrdc.lattice.dToTwoTheta(cFilm ./ ordersFilm, lambda);
+    tt = [ttSub(:); ttFilm(:)];
+end
+
+function testIdentifyPseudomorphicPTO(tc)
+    tt = stoPlusFilmPeaks(4.1511, 1:3);
+    R  = xrdc.lattice.identifyMaterial(tt, 1.5406, Substrate="SrTiO3");
+    tc.verifyTrue(R.substrate.found);
+    tc.verifyEqual(numel(R.substrate.twoTheta), 4);
+    tc.verifyEqual(height(R.series), 1);
+    tc.verifyEqual(R.series.bestMatch(1), "PbTiO3");
+    tc.verifyEqual(R.series.cMeas(1), 4.1511, 'AbsTol', 2e-3);
+    % Dilute PZT imitates PTO: both accepted, ambiguity flagged, PTO first.
+    cand = R.series.candidates{1};
+    tc.verifyTrue(any(string({cand.name}) == "PZT"));
+    tc.verifyTrue(any(R.series.flags{1} == "ambiguous"));
+    % Pseudomorphic: relaxation near 0 for the PTO candidate.
+    pto = cand(string({cand.name}) == "PbTiO3");
+    tc.verifyEqual(pto.relaxation, 0, 'AbsTol', 0.15);
+end
+
+function testIdentifyPseudomorphicPZTUnambiguous(tc)
+    % c = 4.2613 only PZT can explain (PTO window ends ~4.152 + pad).
+    tt = stoPlusFilmPeaks(4.2613, 1:3);
+    R  = xrdc.lattice.identifyMaterial(tt, 1.5406);
+    tc.verifyEqual(R.series.bestMatch(1), "PZT");
+    cand = R.series.candidates{1};
+    tc.verifyFalse(any(string({cand.name}) == "PbTiO3"));
+    pzt = cand(string({cand.name}) == "PZT");
+    tc.verifyEqual(pzt.x, 0.52, 'AbsTol', 0.06);   % strain-corrected estimate
+    tc.verifyFalse(any(R.series.flags{1} == "ambiguous"));
+end
+
+function testIdentifyRelaxedPZTNoComposition(tc)
+    % Fully relaxed MPB PZT: c = bulk 4.146; pseudomorphic inversion must
+    % refuse (x = NaN) because c_meas is below the pseudomorphic range.
+    tt = stoPlusFilmPeaks(4.146, 1:3);
+    R  = xrdc.lattice.identifyMaterial(tt, 1.5406);
+    cand = R.series.candidates{1};
+    pzt  = cand(string({cand.name}) == "PZT");
+    tc.verifyTrue(isnan(pzt.x));
+    tc.verifyEqual(pzt.relaxation, 1, 'AbsTol', 0.2);
+end
+
+function testIdentifyOrderDoubling(tc)
+    % Film shows only 002 and 004 (001/003 too weak): greedy grouping sees
+    % orders {1,2} of c/2 = 2.0756 — database matching must recover c.
+    tt = stoPlusFilmPeaks(4.1511, [2 4]);
+    R  = xrdc.lattice.identifyMaterial(tt, 1.5406);
+    tc.verifyEqual(R.series.bestMatch(1), "PbTiO3");
+    tc.verifyEqual(R.series.cMeas(1), 4.1511, 'AbsTol', 2e-3);
+    tc.verifyTrue(any(R.series.flags{1} == "orderDoubled"));
+end
+
+function testIdentifyGhostNotASeries(tc)
+    % Kbeta ghost of STO 002 injected with intensities: must be filtered,
+    % not grouped or named.
+    lambda = 1.5406;
+    tt = stoPlusFilmPeaks(4.1511, 1:3);
+    ghost2t = xrdc.lattice.dToTwoTheta(3.905/2, 1.3922);
+    pk = struct('twoTheta', num2cell([tt; ghost2t]), ...
+                'counts',   num2cell([1e5*ones(numel(tt),1); 2e4]));
+    % make the parent (STO 002, element 2) strong:
+    pk(2).counts = 1e6;
+    R = xrdc.lattice.identifyMaterial(pk, lambda);
+    tc.verifyEqual(height(R.ghosts), 1);
+    tc.verifyEqual(height(R.series), 1);            % just the PTO series
+    tc.verifyEqual(R.series.bestMatch(1), "PbTiO3");
+end
+
+function testIdentifySubstrateMissingWarns(tc)
+    ttFilmOnly = xrdc.lattice.dToTwoTheta(4.1511 ./ (1:3), 1.5406);
+    tc.verifyWarning(@() xrdc.lattice.identifyMaterial(ttFilmOnly(:), 1.5406), ...
+        'xrdc:lattice:substrateNotFound');
+end
+
+function testIdentifyErrorPaths(tc)
+    tc.verifyError(@() xrdc.lattice.identifyMaterial([], 1.5406), ...
+        'xrdc:lattice:noPeaks');
+    tc.verifyError(@() xrdc.lattice.identifyMaterial([22.7; 46.5], 1.5406, ...
+        Substrate="kryptonite"), 'xrdc:lattice:unknownMaterial');
+end
