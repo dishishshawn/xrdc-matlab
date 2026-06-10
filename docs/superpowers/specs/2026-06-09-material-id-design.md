@@ -112,7 +112,8 @@ caveat string; plus `.unassigned` (peaks no series claimed) and `.substrate`
 "Identify Material…" action available for `twoThetaOmega` scans: substrate dropdown
 (default SrTiO3, populated from `role` ∈ {substrate, both} entries), runs the pipeline
 on the current detected peaks, annotates matched peaks on the plot with material +
-(00l) labels, and shows the ranked results table in a dialog, including the PZT
+(00l) labels, and shows the ranked results in the Analysis panel's Results area
+(the app-wide pattern; nested ranked candidates don't fit a uitable), including the PZT
 composition caveat line verbatim. Follows the existing dark-theme/white-plot-card
 conventions.
 

@@ -310,6 +310,10 @@ function buildAnalysisPanel(fig)
                                                       @(src) onRcOverlayToggle(fig, src));
         case 'twothetaomega'
             row = addEdit (g, row, 'Min prom (%)',   '5',   @(v) onParamChange(fig, 'promPct',   v));
+            subs = identifiableSubstrates();
+            row = addDrop (g, row, 'Substrate', subs, 'SrTiO3', ...
+                                                      @(v) onParamChange(fig, 'substrate', v));
+            row = addIdentifyButton(g, row, fig); %#ok<NASGU>
         case 'xrr'
             row = addEdit (g, row, 'Fringe 2θ min',  '0',   @(v) onParamChange(fig, 'xrrMin',    v));
             row = addEdit (g, row, 'Fringe 2θ max',  '5.0', @(v) onParamChange(fig, 'xrrMax',    v));
@@ -361,6 +365,23 @@ function row = addCheck(g, row, label, value, cb)
         'FontName', T.font, 'FontColor', T.text, ...
         'ValueChangedFcn', @(src, ~) cb(src));
     chk.Layout.Row = row; chk.Layout.Column = [1 2];
+    row = row + 1;
+end
+
+function subs = identifiableSubstrates()
+%IDENTIFIABLESUBSTRATES  Dropdown items: materials usable as a substrate.
+    M = xrdc.lattice.loadMaterials();
+    ok = ismember(string({M.role}), ["substrate", "both"]);
+    subs = cellstr(string({M(ok).name}));
+end
+
+function row = addIdentifyButton(g, row, fig)
+    T = appTheme();
+    b = uibutton(g, 'Text', 'Identify Material', ...
+        'FontName', T.font, 'FontSize', 12, ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
+        'ButtonPushedFcn', @(~,~) onIdentifyMaterial(fig));
+    b.Layout.Row = row; b.Layout.Column = [1 2];
     row = row + 1;
 end
 
@@ -638,6 +659,123 @@ function runThetaTwoTheta(fig)
             i, pk(i).twoTheta, pk(i).counts, pk(i).fwhm); %#ok<AGROW>
     end
     writeResults(fig, lines);
+end
+
+function onIdentifyMaterial(fig)
+%ONIDENTIFYMATERIAL  Run material ID on the current theta-2theta peaks.
+    st = fig.UserData;
+    if isempty(st.scan), return, end
+    promPct = getNum(st.params, 'promPct', 5);
+    pk = xrdc.peaks.findPeaks(st.scan, ...
+        'MinProminence', max(st.scan.counts) * promPct / 100);
+    if isempty(pk)
+        uialert(fig, 'No peaks detected - lower "Min prom (%)" and retry.', ...
+            'Identify material', 'Icon', 'warning');
+        return
+    end
+    sub = getStr(st.params, 'substrate', 'SrTiO3');
+    lambda = 1.5406;
+    if isfield(st.scan, 'lambda') && ~isempty(st.scan.lambda) ...
+            && isfinite(st.scan.lambda)
+        lambda = st.scan.lambda;
+    end
+    try
+        R = xrdc.lattice.identifyMaterial(pk, lambda, Substrate=string(sub));
+    catch ME
+        uialert(fig, sprintf('Identification failed:\n\n%s', ME.message), ...
+            'Identify material', 'Icon', 'error');
+        return
+    end
+    annotateIdentification(st.ax, R);
+    writeResults(fig, identificationReport(R));
+end
+
+function annotateIdentification(ax, R)
+%ANNOTATEIDENTIFICATION  Material + (00l) labels above identified peaks.
+    hold(ax, 'on');
+    yl = ylim(ax);
+    for i = 1:numel(R.substrate.twoTheta)
+        labelPeak(ax, R.substrate.twoTheta(i), yl, ...
+            sprintf('%s', shortName(R.substrate.name)), [0 0 0]);
+    end
+    for i = 1:height(R.series)
+        name = R.series.bestMatch(i);
+        if name == "", name = "?"; end
+        tts = seriesRow(R.series.twoTheta, i);  ords = seriesRow(R.series.orders, i);
+        for j = 1:numel(tts)
+            labelPeak(ax, tts(j), yl, ...
+                sprintf('%s (00%d)', shortName(name), ords(j)), ...
+                [0.65 0.15 0.15]);
+        end
+    end
+    hold(ax, 'off');
+end
+
+function labelPeak(ax, tt, yl, txt, color)
+    text(ax, tt, yl(2) * 0.7, txt, 'Rotation', 90, ...
+        'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+        'FontSize', 8, 'Color', color, 'Interpreter', 'none');
+end
+
+function v = seriesRow(col, i)
+%SERIESROW  Row i of an identifyMaterial series column, cell or numeric.
+%   cell2table keeps orders/twoTheta as a cell column only when row vector
+%   lengths differ; same-length rows (e.g. a single series) collapse to a
+%   plain numeric matrix, where brace indexing would error.
+    if iscell(col), v = col{i}; else, v = col(i, :); end
+end
+
+function s = shortName(name)
+%SHORTNAME  Compact display alias for plot labels.
+    map = struct('SrTiO3', "STO", 'SrRuO3', "SRO", 'PbTiO3', "PTO");
+    n = char(name);
+    if isfield(map, n), s = map.(n); else, s = string(name); end
+end
+
+function lines = identificationReport(R)
+%IDENTIFICATIONREPORT  Results-panel text for an identifyMaterial run.
+    lines = {};
+    if R.substrate.found
+        lines{end+1} = sprintf('Substrate %s: confirmed (%d peaks), c = %.4f A', ...
+            R.substrate.name, numel(R.substrate.twoTheta), R.substrate.cMeas);
+    else
+        lines{end+1} = sprintf('Substrate %s: NOT FOUND in scan', R.substrate.name);
+    end
+    if ~isempty(R.ghosts) && height(R.ghosts) > 0
+        lines{end+1} = sprintf('Filtered %d Kbeta/W-La ghost peak(s)', height(R.ghosts));
+    end
+    for i = 1:height(R.series)
+        lines{end+1} = ''; %#ok<AGROW>
+        lines{end+1} = sprintf('Series %d: c = %.4f A (orders: %s)', ...
+            i, R.series.cMeas(i), strjoin(string(seriesRow(R.series.orders, i)), ',')); %#ok<AGROW>
+        cand = R.series.candidates{i};
+        if isempty(cand)
+            lines{end+1} = '  -> no database match (unidentified)'; %#ok<AGROW>
+        end
+        for k = 1:numel(cand)
+            extra = '';
+            if ~isnan(cand(k).x)
+                extra = sprintf('   x(Zr) ~ %.2f', cand(k).x);
+            end
+            lines{end+1} = sprintf( ...
+                '  -> %-7s score %.2f   strain vs bulk %+.2f%%   relax %.2f%s', ...
+                cand(k).name, cand(k).score, 100 * cand(k).strainVsBulk, ...
+                cand(k).relaxation, extra); %#ok<AGROW>
+        end
+        fl = R.series.flags{i};
+        if ~isempty(fl)
+            lines{end+1} = sprintf('  flags: %s', strjoin(fl, ', ')); %#ok<AGROW>
+        end
+    end
+    if ~isempty(R.unassigned)
+        lines{end+1} = '';
+        lines{end+1} = sprintf('Unassigned peaks: %s', ...
+            strjoin(compose('%.2f', R.unassigned), ', '));
+    end
+    for nt = R.notes(:).'
+        lines{end+1} = ''; %#ok<AGROW>
+        lines{end+1} = char("NOTE: " + nt); %#ok<AGROW>
+    end
 end
 
 function runXRR(fig)
