@@ -210,3 +210,60 @@ function testIdentifyErrorPaths(tc)
     tc.verifyError(@() xrdc.lattice.identifyMaterial([22.7; 46.5], 1.5406, ...
         Substrate="kryptonite"), 'xrdc:lattice:unknownMaterial');
 end
+
+function testIdentifyUnsortedSubstrateCMeas(tc)
+    % Substrate cMeas must pair each claimed d with ITS matched order,
+    % not assume descending-d input (regression for order mispairing).
+    lambda = 1.5406;
+    ttSub  = xrdc.lattice.dToTwoTheta(3.905 ./ (1:4), lambda);
+    tt     = ttSub([3 1 4 2]);                 % fixed shuffle
+    R = xrdc.lattice.identifyMaterial(tt(:), lambda);
+    tc.verifyTrue(R.substrate.found);
+    tc.verifyEqual(R.substrate.cMeas, 3.905, 'AbsTol', 2e-3);
+end
+
+function testIdentifySubstrateOnlyNoSeries(tc)
+    % Substrate-only scan: no film series, no crash on the empty table.
+    lambda = 1.5406;
+    ttSub  = xrdc.lattice.dToTwoTheta(3.905 ./ (1:4), lambda);
+    R = xrdc.lattice.identifyMaterial(ttSub(:), lambda);
+    tc.verifyTrue(R.substrate.found);
+    tc.verifyEqual(height(R.series), 0);
+    tc.verifyEmpty(R.unassigned);
+end
+
+function testIdentifyBadSubstrateErrors(tc)
+    % PbTiO3 has role "film" - not usable as a declared substrate.
+    tc.verifyError(@() xrdc.lattice.identifyMaterial([22.7; 46.5], 1.5406, ...
+        Substrate="PbTiO3"), 'xrdc:lattice:badSubstrate');
+end
+
+function testIdentifyUnassignedStrayPeak(tc)
+    % STO series + one stray peak at d = 2.31 A. As a single it is tried
+    % at every order l = 1..4 -> c in {2.31, 4.62, 6.93, 9.24} A, none of
+    % which lands in any candidate window (+- pad ~0.06 A):
+    %   SrRuO3 hull [3.930, 3.951], PbTiO3 [4.1511, 4.152],
+    %   PZT [4.146, 4.2613]. Must land in R.unassigned, not in a series.
+    lambda  = 1.5406;
+    ttSub   = xrdc.lattice.dToTwoTheta(3.905 ./ (1:4), lambda);
+    ttStray = xrdc.lattice.dToTwoTheta(2.31, lambda);
+    R = xrdc.lattice.identifyMaterial([ttSub(:); ttStray], lambda);
+    tc.verifyTrue(R.substrate.found);
+    tc.verifyEqual(height(R.series), 0);
+    tc.verifyEqual(R.unassigned, ttStray, 'AbsTol', 1e-9);
+end
+
+function testIdentifyTieBreakParsimony(tc)
+    % c = 4.1510, 1e-4 BELOW PTO's pseudomorphic prediction (4.15109):
+    % PTO's raw score dips just under 1.0 while PZT's pseudomorphic
+    % inversion keeps PZT at exactly 1.0. Quantized-score tie-break must
+    % still rank fixed-stoichiometry PTO first (parsimony), with the
+    % ambiguity flag set.
+    tt = stoPlusFilmPeaks(4.1510, 1:3);
+    R  = xrdc.lattice.identifyMaterial(tt, 1.5406);
+    tc.verifyEqual(height(R.series), 1);
+    tc.verifyEqual(R.series.bestMatch(1), "PbTiO3");
+    cand = R.series.candidates{1};
+    tc.verifyTrue(any(string({cand.name}) == "PZT"));
+    tc.verifyTrue(any(R.series.flags{1} == "ambiguous"));
+end

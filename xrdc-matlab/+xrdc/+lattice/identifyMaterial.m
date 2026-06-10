@@ -76,18 +76,20 @@ function R = identifyMaterial(peaks, lambda, opts)
     d = xrdc.lattice.twoThetaToD(tt, lambda);
     cSub = sub.c;
     isSubPeak = false(size(d));
-    subOrders = [];
+    matchedL = zeros(size(d));   % order l claimed by each peak (0 = none)
     for l = 1:opts.MaxOrder
         dPred = cSub / l;
         [err, j] = min(abs(d - dPred) / dPred);
         if err <= opts.SubstrateTol && ~isSubPeak(j)
             isSubPeak(j) = true;
-            subOrders(end+1) = l; %#ok<AGROW>
+            matchedL(j) = l;
         end
     end
+    % Pair each claimed d with ITS matched order (indexing by the same
+    % mask) - pairing by loop order is wrong for unsorted input.
     R.substrate = struct('name', string(sub.name), 'found', any(isSubPeak), ...
         'twoTheta', tt(isSubPeak), 'cRef', cSub, ...
-        'cMeas', meanOrNaN(d(isSubPeak) .* subOrders(:)));
+        'cMeas', meanOrNaN(d(isSubPeak) .* matchedL(isSubPeak)));
     if ~R.substrate.found
         warning('xrdc:lattice:substrateNotFound', ...
             ['Declared substrate %s: no (00l) series found within %.2f%%. ', ...
@@ -152,14 +154,21 @@ function R = identifyMaterial(peaks, lambda, opts)
         end
     end
 
-    R.series = cell2table(rows, 'VariableNames', ...
-        {'cMeas','cSigma','orders','twoTheta','bestMatch','bestScore', ...
-         'candidates','flags'});
+    seriesVars = {'cMeas','cSigma','orders','twoTheta','bestMatch', ...
+        'bestScore','candidates','flags'};
+    if isempty(rows)
+        % cell2table on empty rows would leave 'candidates' non-cell and
+        % break downstream cellfun calls; build the empty table explicitly.
+        R.series = cell2table(cell(0, 8), 'VariableNames', seriesVars);
+    else
+        R.series = cell2table(rows, 'VariableNames', seriesVars);
+    end
     R.unassigned = unassigned(:);
     R.ghosts = ghosts;
     R.lambda = lambda;
     R.notes = strings(0, 1);
-    if any(cellfun(@(c) any(string({c.name}) == "PZT"), R.series.candidates))
+    if height(R.series) > 0 && ...
+            any(cellfun(@(c) any(string({c.name}) == "PZT"), R.series.candidates))
         R.notes(end+1) = PZT_CAVEAT;
     end
 end
@@ -223,15 +232,19 @@ function cand = rankCandidates(films, cMeas, aSub, pad)
             'hasComposition', ~isempty(e.composition)); %#ok<AGROW>
     end
     if isempty(cand), return, end
-    % Rank: score desc, |cMeas-cPred| asc, fixed-composition first (parsimony).
-    % The |cMeas-cPred| key is quantized at 1e-3 A: a composition-model
-    % entry's pseudomorphic inversion gives cPred = cMeas EXACTLY (by
-    % construction), which would otherwise beat a fixed entry sitting a
-    % physically meaningless ~1e-5 A off its prediction. Sub-milli-Angstrom
-    % differences tie, letting the parsimony key decide (spec: dilute PZT
-    % can imitate PTO arbitrarily well, so PTO must win the tie).
-    key = [-[cand.score]; round(abs(cMeas - [cand.cPred]) / 1e-3); ...
-           double([cand.hasComposition])].';
+    % Rank: quantized score desc, fixed-composition first (parsimony),
+    % then |cMeas-cPred| asc (quantized at 1e-3 A).
+    % The score key is quantized at 0.05: a composition-model entry's
+    % pseudomorphic inversion gives score 1.0 EXACTLY across its whole
+    % hull (cPred = cMeas by construction), so any sub-mA noise that
+    % nudges a fixed entry's score below 1.0 would otherwise hand the
+    % win to the composition model on the raw-score key. Scores within
+    % 0.05 are treated as tied and parsimony (fixed stoichiometry)
+    % decides (spec: dilute PZT can imitate PTO arbitrarily well, so
+    % PTO must win exact AND near ties). Raw scores are still reported,
+    % and the 0.2-window "ambiguous" flag is unchanged.
+    key = [-round([cand.score] / 0.05); double([cand.hasComposition]); ...
+           round(abs(cMeas - [cand.cPred]) / 1e-3)].';
     [~, order] = sortrows(key);
     cand = cand(order);
 end
