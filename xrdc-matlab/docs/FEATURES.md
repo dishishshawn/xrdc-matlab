@@ -22,6 +22,7 @@ _Last reconciled: 2026-06-05._
 
 ## Scan types & analyses
 - ✅ θ-2θ (`twoThetaOmega`) — peaks + substrate overlay **[validated vs Tushar S25]**
+- ✅ Material identification from (00l) peaks — `xrdc.lattice.identifyMaterial`: harmonic-series grouping, Kβ/W-Lα ghost filter, strain-aware candidate matching (pseudomorphic c prediction), ranked candidate sets, PZT composition estimate (strain-caveated). Database: `+xrdc/+data/materials.json` (STO, SRO, PTO, PZT). **[validated vs S25 + S31]**
 - ✅ Rocking curve (`omega`) — peak fit → FWHM **[validated vs Tushar S25, Gaussian]**
 - ✅ φ scan (`phi`) — noise-floor pole detection + 360° wrap handling + n-fold
       symmetry report (`findPhiPeaks`); robust on weak films **[validated on PtO₂/TiO₂(101)]**

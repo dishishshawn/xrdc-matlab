@@ -93,7 +93,7 @@ function out = buildStandalone(opts)
 
     % --- Data files the dependency analyzer can't discover on its own ---
     extraFiles = strings(0, 1);
-    for f = ["substrates.json", "xrayLines.json"]
+    for f = ["substrates.json", "xrayLines.json", "materials.json"]
         p = fullfile(dataDir, f);
         if isfile(p)
             extraFiles(end+1, 1) = p; %#ok<AGROW>
