@@ -97,8 +97,10 @@ end
 function testGhostFilterToleranceSparesNearbyRealPeak(tc)
     % Regression for the PositionTol default (0.15 -> 0.10 deg): a genuine
     % weak film peak 0.12 deg away from a predicted ghost position must
-    % survive.  Real case: S31 PTO 002 sits 0.11 deg from the W-Lalpha
-    % ghost position of SRO 002 and was falsely removed at tol 0.15.
+    % survive.  Synthetic boundary check (parent uses STO's d002 for
+    % convenience); the real case it guards is S31, where PTO 002 sits
+    % 0.121 deg from the W-Lalpha ghost position of SRO 002 and was
+    % falsely removed at tol 0.15.
     lambda = 1.5406;
     d002   = 3.905/2;
     parent = xrdc.lattice.dToTwoTheta(d002, lambda);
