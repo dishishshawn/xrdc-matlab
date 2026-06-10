@@ -26,7 +26,14 @@ function [keep, ghosts] = filterGhostPeaks(twoTheta, counts, lambda, opts)
 %
 %   Name-Value
 %     GhostLambdas (default [1.3922 1.4763])  — Cu Kbeta1, W Lalpha1 (A)
-%     PositionTol  (default 0.15)             — degrees 2-theta
+%     PositionTol  (default 0.10)             — degrees 2-theta.  Ghost
+%                  positions are computed exactly from the parent's d, and
+%                  alignment errors (sample displacement, zero shift) move
+%                  parent and ghost together, so the prediction is good to
+%                  well under 0.1 deg.  Validated on the S31 heterostructure
+%                  scan, where the real PTO 001/002 film peaks sit 0.15 and
+%                  0.11 deg from predicted W-Lalpha ghost positions and were
+%                  falsely flagged by the former 0.15-deg default.
 %     MaxRatio     (default 0.3)              — ghost/parent intensity cap
 %
 %   Outputs
@@ -40,7 +47,7 @@ function [keep, ghosts] = filterGhostPeaks(twoTheta, counts, lambda, opts)
         counts   (:,1) double
         lambda   (1,1) double {mustBePositive}
         opts.GhostLambdas (1,:) double = [1.3922, 1.4763]
-        opts.PositionTol  (1,1) double {mustBePositive} = 0.15
+        opts.PositionTol  (1,1) double {mustBePositive} = 0.10
         opts.MaxRatio     (1,1) double {mustBePositive} = 0.3
     end
 

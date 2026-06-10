@@ -94,6 +94,21 @@ function testGhostFilterWLineAndMixedNaN(tc)
         'No ghosts should be recorded when the candidate has NaN counts');
 end
 
+function testGhostFilterToleranceSparesNearbyRealPeak(tc)
+    % Regression for the PositionTol default (0.15 -> 0.10 deg): a genuine
+    % weak film peak 0.12 deg away from a predicted ghost position must
+    % survive.  Real case: S31 PTO 002 sits 0.11 deg from the W-Lalpha
+    % ghost position of SRO 002 and was falsely removed at tol 0.15.
+    lambda = 1.5406;
+    d002   = 3.905/2;
+    parent = xrdc.lattice.dToTwoTheta(d002, lambda);
+    ghost  = xrdc.lattice.dToTwoTheta(d002, 1.4763);   % W-Lalpha1 position
+    tt = [ghost + 0.12; parent];  counts = [5e4; 1e6];
+    keep = xrdc.peaks.filterGhostPeaks(tt, counts, lambda);
+    tc.verifyEqual(keep, [true; true], ...
+        'Peak 0.12 deg from a ghost position must not be flagged');
+end
+
 % ---------- groupHarmonicSeries ----------
 
 function testGroupTwoCleanSeries(tc)
@@ -266,4 +281,47 @@ function testIdentifyTieBreakParsimony(tc)
     cand = R.series.candidates{1};
     tc.verifyTrue(any(string({cand.name}) == "PZT"));
     tc.verifyTrue(any(R.series.flags{1} == "ambiguous"));
+end
+
+% ---------- real-data validation (gated) ----------
+
+function d = validationInputDir()
+%Helper (not a test): validation data dir, anchored on this file's location
+%   (the unittest runner cd's into tests/, so cwd-relative paths are fragile).
+    d = fullfile(fileparts(mfilename('fullpath')), '..', '..', ...
+        'validation', 'tushar', 'input');
+end
+
+function testIdentifyS25RealData(tc)
+    p = fullfile(validationInputDir(), ...
+        'TR_S25_SRO_STO(100)_700c_100mT_10500sh_5hz_2theta_omega_05062026.txt');
+    tc.assumeTrue(isfile(p), 'S25 validation scan not present');
+    scan = xrdc.io.readScan(p);
+    % Scan-struct input (auto findPeaks at 5% prominence) misses the weak
+    % SRO film peak: SRO 002 is ~6e4 counts vs ~6.3e6 for STO 002 (~1% -
+    % even the 1% threshold clips it by a hair).  Find peaks explicitly.
+    pk = xrdc.peaks.findPeaks(scan, 'MinProminence', max(scan.counts)*0.005);
+    R = xrdc.lattice.identifyMaterial(pk, 1.5406, Substrate="SrTiO3");
+    tc.verifyTrue(R.substrate.found);
+    tc.verifyTrue(any(R.series.bestMatch == "SrRuO3"), ...
+        'SRO film series not identified');
+end
+
+function testIdentifyS31Heterostructure(tc)
+    p = fullfile(validationInputDir(), 'Heterostructure raw data', ...
+        ['TR_S31_1_PTO on SRO_STO(100)_580c_150mT_and_700c_ 200mT', ...
+         '_10500sh_5hz_2theta_omega_05202026.txt']);
+    tc.assumeTrue(isfile(p), 'S31 validation scan not present');
+    scan = xrdc.io.readScan(p);
+    % The PTO film peaks are very weak relative to the substrate (PTO 002
+    % is ~4.6e3 counts vs ~1.3e7 for STO 002, i.e. ~0.04%), so the default
+    % 5% scan-struct prominence misses them.  Find peaks explicitly.
+    pk = xrdc.peaks.findPeaks(scan, 'MinProminence', max(scan.counts)*2e-4);
+    R = xrdc.lattice.identifyMaterial(pk, 1.5406, Substrate="SrTiO3");
+    tc.verifyTrue(R.substrate.found);
+    % PTO must appear among candidates of some series (bestMatch may be
+    % flagged ambiguous vs dilute PZT - that is correct behaviour).
+    hasPTO = any(cellfun(@(c) ~isempty(c) && ...
+        any(string({c.name}) == "PbTiO3"), R.series.candidates));
+    tc.verifyTrue(hasPTO, 'PTO not among any series candidates');
 end
