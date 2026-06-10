@@ -3,7 +3,7 @@
 Status of every feature, derived from the actual `+xrdc/` source (not the roadmap).
 Legend: ✅ done · ⏳ in progress / gated · ⬜ wanted, not started · ❌ stubbed (raises error).
 
-_Last reconciled: 2026-06-05._
+_Last reconciled: 2026-06-09._
 
 ## File I/O (`+xrdc/+io`)
 - ✅ PANalytical `.xrdml`, single scan — `readXrdml`

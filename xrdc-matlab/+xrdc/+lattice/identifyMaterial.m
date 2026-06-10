@@ -64,7 +64,7 @@ function R = identifyMaterial(peaks, lambda, opts)
     ghosts = table();
     if opts.GhostFilter
         [keep, ghosts] = xrdc.peaks.filterGhostPeaks(tt, counts, lambda);
-        tt = tt(keep); counts = counts(keep); %#ok<NASGU>
+        tt = tt(keep);   % counts are not consumed past this point
     end
 
     % --- 2. substrate: declared input, confirmed not discovered ----------

@@ -2,13 +2,14 @@
 
 MATLAB port of Dr. Tassilo Heeg's Delphi XRDC, built for the Paik lab. Reads Rigaku SmartLab ASCII (`.txt`), PANalytical XML (`.xrdml`), Philips `.x00`, and plain text; produces publication-ready figures matching the Paik group's paper style (Schwaigert et al. *J. Vac. Sci. Technol. A* 41, 022703 (2023)).
 
-This guide covers installation, the data model, and the five core workflows:
+This guide covers installation, the data model, and the six core workflows:
 
 1. Load a scan
 2. Plot a single θ-2θ / XRR trace
 3. Rocking curve → FWHM in arcsec
 4. φ scan → substrate symmetry check
 5. Reciprocal-space map (RSM) from multiple slices
+6. Material identification from (00l) peak positions
 
 For algorithm derivations see `../../ALGORITHM_SPEC.md`. For contribution conventions see `../CLAUDE.md`.
 
@@ -166,6 +167,32 @@ h     = xrdc.plot.plotRsm(scans, ...
 The transform in `xrdc.rsm.toReciprocalSpace` preserves the θ-asymmetry documented in ALGORITHM_SPEC §7.1 (`θ_raw` builds ω; corrected `θ` feeds the k formulas). Do not override this — it matters when applying goniometer zero-offset corrections.
 
 For interactive goniometer-offset alignment, use `xrdc.rsm.setOffsetsInteractive` — click the known substrate peak in the RSM figure, enter the theoretical 2θ/ω, and the function returns `(ΔΘ, ΔΩ)` for use with `plotRsm`.
+
+### 4.6 Material identification from (00l) peaks
+
+From a θ-2θ scan of an epitaxial film, identify which material(s) produced the
+observed peaks (database: SrTiO₃, SrRuO₃, PbTiO₃, PZT in `+xrdc/+data/materials.json`).
+
+```matlab
+scan = xrdc.io.readScan(path);
+pk   = xrdc.peaks.findPeaks(scan, 'MinProminence', 0.005*max(scan.counts));
+R    = xrdc.lattice.identifyMaterial(pk, scan.lambda, Substrate="SrTiO3");
+R.series          % one row per phase: c, ranked candidates, scores, flags
+```
+
+The pipeline filters Cu-Kβ / W-Lα ghost peaks, confirms the declared substrate,
+clusters the remaining peaks into harmonic (00l) series, and matches each series'
+refined c against the database **strain-aware**: candidates are scored over the
+interval between bulk c and the pseudomorphic-on-substrate prediction, so a
+coherently strained film is still named correctly. The full ranked candidate set
+is always reported (never a lone winner) with ambiguity flags; for PZT a Zr
+fraction is estimated under the pseudomorphic assumption — note the caveat in
+`R.notes`: composition from (00l) alone is strain-confounded and needs in-plane
+a (RSM or asymmetric reflection) to deconvolve.
+
+In the GUI, load a θ-2θ scan, pick the substrate, and click **Identify Material**:
+matched peaks get material + (00l) labels and the ranked report appears in the
+Results area.
 
 ---
 
