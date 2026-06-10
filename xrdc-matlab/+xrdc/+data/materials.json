@@ -1,0 +1,53 @@
+{
+  "_comment": "Material reference data for xrdc.lattice.identifyMaterial. Lattice values in Angstrom. role: substrate|film|both. elastic: either {nu} (cubic/biaxial approx, factor 2*nu/(1-nu)) or {c13,c33} in GPa (tetragonal, factor 2*c13/c33). composition (PZT only): tetragonal-side anchors for a(x), c(x), x = Zr fraction. All entries share identical top-level fields so jsondecode yields a struct array.",
+  "materials": [
+    {
+      "name": "SrTiO3",
+      "aliases": ["STO", "strontium titanate"],
+      "system": "cubic",
+      "a": 3.905,
+      "c": 3.905,
+      "role": "both",
+      "elastic": { "nu": 0.232 },
+      "composition": null,
+      "refs": "a = 3.905 A (Substrates.def / substrates.json); nu = 0.232 (commonly used STO biaxial Poisson ratio)"
+    },
+    {
+      "name": "SrRuO3",
+      "aliases": ["SRO", "strontium ruthenate"],
+      "system": "cubic",
+      "a": 3.93,
+      "c": 3.93,
+      "role": "film",
+      "elastic": { "nu": 0.30 },
+      "composition": null,
+      "refs": "pseudocubic a = 3.93 A (orthorhombic SRO treated pseudocubically, standard for (00l) film work); nu = 0.30 nominal perovskite value"
+    },
+    {
+      "name": "PbTiO3",
+      "aliases": ["PTO", "lead titanate"],
+      "system": "tetragonal",
+      "a": 3.904,
+      "c": 4.152,
+      "role": "film",
+      "elastic": { "nu": 0.30 },
+      "composition": null,
+      "refs": "a = 3.904, c = 4.152 A (Shirane & Hoshino 1951 tetragonal PbTiO3); nu = 0.30 nominal"
+    },
+    {
+      "name": "PZT",
+      "aliases": ["Pb(Zr,Ti)O3", "PbZrTiO3", "lead zirconate titanate"],
+      "system": "tetragonal",
+      "a": 4.036,
+      "c": 4.146,
+      "role": "film",
+      "elastic": { "nu": 0.30 },
+      "composition": {
+        "x": [0.0, 0.1, 0.2, 0.3, 0.4, 0.52],
+        "a": [3.904, 3.93, 3.96, 3.99, 4.01, 4.036],
+        "c": [4.152, 4.15, 4.149, 4.148, 4.147, 4.146]
+      },
+      "refs": "nominal entry = MPB 52/48; composition anchors interpolated from the tetragonal-side phase data of Jaffe, Cook & Jaffe, Piezoelectric Ceramics (1971) / Shirane & Suzuki (1952); approximate +-0.01 A, adequate for ID windows"
+    }
+  ]
+}
