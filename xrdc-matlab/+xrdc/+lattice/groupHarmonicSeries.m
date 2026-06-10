@@ -11,6 +11,12 @@ function [S, singles] = groupHarmonicSeries(d, opts)
 %   order-doubling disambiguation belongs to the database-matching stage
 %   (see identifyMaterial).
 %
+%   Two documented v1 limitations: members are validated against the
+%   SEED c, not the refined least-squares c, so a member's residual vs
+%   the refined c can reach ~2*Tolerance; and a peak that fits two
+%   candidate series is claimed by the larger one, so rare near-degenerate
+%   contests may be assigned suboptimally.
+%
 %   Inputs
 %     d : vector of d-spacings (A)
 %
