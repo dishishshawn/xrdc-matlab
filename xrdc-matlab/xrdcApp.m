@@ -311,8 +311,8 @@ function buildAnalysisPanel(fig)
         case 'twothetaomega'
             row = addEdit (g, row, 'Min prom (%)',   '5',   @(v) onParamChange(fig, 'promPct',   v));
             subs = identifiableSubstrates();
-            row = addDrop (g, row, 'Substrate', subs, 'SrTiO3', ...
-                                                      @(v) onParamChange(fig, 'substrate', v));
+            row = addDrop (g, row, 'Substrate', subs, subs{1}, ...
+                                                      @(v) onSubstrateChange(fig, v));
             row = addIdentifyButton(g, row, fig); %#ok<NASGU>
         case 'xrr'
             row = addEdit (g, row, 'Fringe 2θ min',  '0',   @(v) onParamChange(fig, 'xrrMin',    v));
@@ -673,7 +673,11 @@ function onIdentifyMaterial(fig)
             'Identify material', 'Icon', 'warning');
         return
     end
-    sub = getStr(st.params, 'substrate', 'SrTiO3');
+    sub = getStr(st.params, 'substrate', '');
+    if isempty(sub)
+        s = identifiableSubstrates();
+        sub = s{1};
+    end
     lambda = 1.5406;
     if isfield(st.scan, 'lambda') && ~isempty(st.scan.lambda) ...
             && isfinite(st.scan.lambda)
@@ -688,6 +692,24 @@ function onIdentifyMaterial(fig)
     end
     annotateIdentification(st.ax, R);
     writeResults(fig, identificationReport(R));
+    st = fig.UserData;
+    st.params.identified = true;
+    fig.UserData = st;
+end
+
+function onSubstrateChange(fig, v)
+%ONSUBSTRATECHANGE  Substrate dropdown handler.
+%   Stores the new substrate; if an identification overlay is currently
+%   displayed, re-renders the base plot and re-runs identification so the
+%   annotations reflect the new substrate. Without an identification the
+%   base plot does not depend on the substrate, so nothing re-renders.
+    st = fig.UserData;
+    st.params.substrate = v;
+    fig.UserData = st;
+    if isfield(st.params, 'identified') && st.params.identified
+        runAnalysis(fig);
+        onIdentifyMaterial(fig);
+    end
 end
 
 function annotateIdentification(ax, R)
