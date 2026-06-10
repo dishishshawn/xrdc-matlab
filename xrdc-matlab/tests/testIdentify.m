@@ -93,3 +93,31 @@ function testGhostFilterWLineAndMixedNaN(tc)
     tc.verifyEqual(height(ghosts_mix), 0, ...
         'No ghosts should be recorded when the candidate has NaN counts');
 end
+
+% ---------- groupHarmonicSeries ----------
+
+function testGroupTwoCleanSeries(tc)
+    cA = 3.905;  cB = 4.151;
+    d  = [cA./(1:4), cB./(1:3)].';
+    [S, singles] = xrdc.lattice.groupHarmonicSeries(d);
+    tc.verifyEqual(numel(S), 2);
+    tc.verifyEmpty(singles);
+    cs = sort([S.c]);
+    tc.verifyEqual(cs, sort([cA cB]), 'AbsTol', 1e-9);
+    tc.verifyEqual(sort(S([S.c] == cA).orders), 1:4);
+end
+
+function testGroupLeavesSingles(tc)
+    d = [3.905./(1:3), 2.31].';   % 2.31 A fits no order of 3.905 within tol
+    [S, singles] = xrdc.lattice.groupHarmonicSeries(d);
+    tc.verifyEqual(numel(S), 1);
+    tc.verifyEqual(singles, 4);
+end
+
+function testGroupToleranceRejects(tc)
+    % Second "order" 1.2% off — outside the 0.5% default tolerance.
+    d = [3.905; 3.905/2 * 1.012];
+    [S, singles] = xrdc.lattice.groupHarmonicSeries(d);
+    tc.verifyEmpty(S);
+    tc.verifyEqual(sort(singles(:).'), [1 2]);
+end
