@@ -8,6 +8,15 @@ function [keep, ghosts] = filterGhostPeaks(twoTheta, counts, lambda, opts)
 %   Any peak within PositionTol of a predicted ghost position whose
 %   intensity is at most MaxRatio x the parent is flagged.
 %
+%   Caveat: a genuine weak peak that happens to fall within PositionTol of
+%   a predicted ghost position will also be flagged as a ghost.  Callers
+%   should inspect the `ghosts` output table to audit all removals before
+%   accepting the result.
+%
+%   NaN-count peaks are never flagged — unmeasured peaks cannot be ranked
+%   as strong or weak, so the ghost test is skipped for them.  Only the
+%   all-NaN case triggers the xrdc:peaks:noIntensity warning.
+%
 %   Inputs
 %     twoTheta : peak positions, degrees (vector)
 %     counts   : peak intensities (same size; all-NaN -> warning

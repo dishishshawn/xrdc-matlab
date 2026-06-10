@@ -60,3 +60,36 @@ function testGhostFilterNoIntensitiesWarns(tc)
     [keep, ~] = xrdc.peaks.filterGhostPeaks(tt, nan(2,1), 1.5406);
     tc.verifyEqual(keep, [true; true]);   % nothing removed blind
 end
+
+function testGhostFilterWLineAndMixedNaN(tc)
+    % --- W-Lalpha1 ghost removal ---
+    % STO (002): d = 3.905/2; W-Lalpha1 ghost of that reflection.
+    lambda  = 1.5406;
+    d002    = 3.905/2;
+    parent2t = xrdc.lattice.dToTwoTheta(d002, lambda);
+    ghost2t  = xrdc.lattice.dToTwoTheta(d002, 1.4763);   % W-Lalpha1
+    tt_w     = [ghost2t; parent2t];
+    counts_w = [5e4; 1e6];   % ghost is 5% of parent — well below MaxRatio
+    [keep_w, ghosts_w] = xrdc.peaks.filterGhostPeaks(tt_w, counts_w, lambda);
+    tc.verifyEqual(keep_w, [false; true], ...
+        'W-Lalpha1 ghost should be removed');
+    tc.verifyEqual(height(ghosts_w), 1);
+    tc.verifyEqual(ghosts_w.ghostLambda(1), 1.4763, 'AbsTol', 1e-9);
+
+    % --- Mixed NaN/real: NaN-count peak must never be flagged ---
+    % Setup: parent at STO (002), Kbeta ghost position occupied by a
+    % NaN-count peak (unmeasured).  Even though it sits at the ghost
+    % position it must survive because its intensity cannot be ranked.
+    kbeta2t  = xrdc.lattice.dToTwoTheta(d002, 1.3922);
+    tt_mix   = [kbeta2t; parent2t];          % NaN-peak at ghost pos, parent
+    counts_mix = [NaN; 1e6];
+    % No warning should be emitted (not all-NaN).
+    tc.verifyWarningFree( ...
+        @() xrdc.peaks.filterGhostPeaks(tt_mix, counts_mix, lambda));
+    [keep_mix, ghosts_mix] = xrdc.peaks.filterGhostPeaks(tt_mix, counts_mix, lambda);
+    tc.verifyTrue(keep_mix(1), ...
+        'NaN-count peak at ghost position must not be flagged');
+    tc.verifyTrue(keep_mix(2), 'Parent must remain');
+    tc.verifyEqual(height(ghosts_mix), 0, ...
+        'No ghosts should be recorded when the candidate has NaN counts');
+end
