@@ -302,6 +302,9 @@ function buildAnalysisPanel(fig)
             row = addEdit (g, row, 'Fit window (°)', '0.5', @(v) onParamChange(fig, 'fitWindow', v));
             row = addDrop (g, row, 'Shape', {'gauss','lorentz','pseudoVoigt'}, 'gauss', ...
                                                       @(v) onParamChange(fig, 'shape',     v));
+            showFit = isfield(st.params, 'showFit') && st.params.showFit;
+            row = addCheck(g, row, 'Show fit curve', showFit, ...
+                                                      @(src) onParamChange(fig, 'showFit', src.Value));
             overlayOn = isfield(st.params, 'rcOverlay') && st.params.rcOverlay;
             row = addCheck(g, row, 'Overlay 2nd RC (film/sub)', overlayOn, ...
                                                       @(src) onRcOverlayToggle(fig, src));
@@ -492,9 +495,9 @@ function runRockingCurve(fig)
         end
     end
 
+    % The fitted profile is intentionally NOT drawn — only the raw RC and its
+    % peak marker. The FWHM (from the fit) is still reported in the title/results.
     hold(ax, 'on');
-    plot(ax, fit.xFit, max(fit.yFit, 1), '--', ...
-        'Color', [0.85 0.2 0.2], 'LineWidth', 1.8);
     plot(ax, pkMain.twoTheta, pkMain.counts, 'o', ...
         'MarkerEdgeColor', 'k', 'MarkerFaceColor', [1 0.8 0.2], 'MarkerSize', 9);
     hold(ax, 'off');
