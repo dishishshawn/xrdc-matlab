@@ -84,7 +84,17 @@ may move to meet them.
 support the subset of options the auto path uses (verify during implementation; extend
 it if a used option is missing).
 
-### 2. GUI — `xrdcApp.m` θ-2θ panel (modified)
+### 2. `xrdc.lattice.identifyMaterial` — scan-struct input (modified)
+
+`normalizeInput` currently hardcodes the same broken rule the GUI has
+(`MinProminence = 5% of max counts`, `identifyMaterial.m:185-186`) — a scan struct
+passed directly to `identifyMaterial` misses every film peak more than ~1.3 decades
+below the substrate. Change it to the auto path with `MinSeparation = 0.2°` (same
+rationale as the GUI: merge the Kα split before harmonic grouping). Function help
+updated. Existing callers that pass peak vectors or `findPeaks` output are
+unaffected.
+
+### 3. GUI — `xrdcApp.m` θ-2θ panel (modified)
 
 - "Min prom (%)" edit field default becomes the string `auto`.
   - Value `auto` (case-insensitive) or empty → call `findPeaks` with **no**
@@ -101,7 +111,7 @@ it if a used option is missing).
 - Library `MinSeparation` default (0.05°) is untouched — superlattice and validation
   scripts pass explicit values and must not shift.
 
-### 3. Docs
+### 4. Docs
 
 - `docs/USER_GUIDE.md`: θ-2θ parameter table ("Min prom (%)": default `auto`, what it
   does, how to override); workflow text that says "lower the threshold" updated.
@@ -133,6 +143,9 @@ it if a used option is missing).
   results identical to the pre-change behaviour (pin current output).
 - **Option interplay:** `MinHeight` / `TwoThetaRange` / `MinSeparation` respected in
   auto mode.
+- **identifyMaterial scan-struct path** (`tests/testIdentify.m`): synthetic STO +
+  weak PTO film (~0.1% of max counts — far under the old 5% rule) passed as a scan
+  struct → PTO series identified.
 - **Real data (gated `assumeTrue(isfile(...))`, never required for CI green):**
   - S04, S05, S11 θ-2θ → substrate STO 001/002/003 within 0.05° of 22.75/46.47/72.57°
     plus film peaks; exact expected number of peaks per file pinned after the
