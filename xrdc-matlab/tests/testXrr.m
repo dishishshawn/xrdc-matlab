@@ -213,3 +213,53 @@ function testAnalyzeFringesRealSampleS25(tc)
     tc.verifyEqual(res.thicknessFftNm,  40, 'AbsTol', 1.5);
     tc.verifyGreaterThan(res.fringeSnr, 3);
 end
+
+% =========================================================================
+% reflectivityModel (Parratt + Nevot-Croce)
+% =========================================================================
+
+function lyr = stoFilmOnSto(tNm, rough)
+%Helper: STO film (slightly off-density -> fringes) on STO substrate.
+    lyr = struct('material', {"SrTiO3","SrTiO3"}, ...
+                 'density',  {4.8, 5.12}, ...
+                 'thickness',{tNm, Inf}, ...
+                 'roughness',{rough, rough});
+end
+
+function testReflectivityBareSubstrateFresnel(tc)
+    % No film: a single semi-infinite substrate. R -> ~1 well below the
+    % critical edge and falls steeply past it (Fresnel behaviour).
+    tt = (0.05:0.01:3).';
+    sub = struct('material',"SrTiO3",'density',5.12,'thickness',Inf,'roughness',0);
+    R = xrdc.xrr.reflectivityModel(tt, sub, 1.5406, Footprint=false);
+    tc.verifyGreaterThan(mean(R(tt < 0.2)), 0.9);     % near total reflection
+    tc.verifyLessThan(R(end), 1e-3);                  % strongly attenuated at 3 deg
+    tc.verifyTrue(all(R >= 0 & R <= 1.0001));
+end
+
+function testReflectivityFilmProducesFringes(tc)
+    tt = (0.5:0.002:3).';
+    R = xrdc.xrr.reflectivityModel(tt, stoFilmOnSto(30, 0.2), 1.5406, Footprint=false);
+    % A finite film must imprint oscillations: count sign changes of the
+    % log-reflectivity slope -> several fringes over [1,3] deg.
+    seg = R(tt > 1 & tt < 3);
+    dl  = diff(log10(max(seg, 1e-12)));
+    nWiggle = sum(abs(diff(sign(dl))) > 0);
+    tc.verifyGreaterThan(nWiggle, 4);
+end
+
+function testReflectivityRoughnessDampsFringes(tc)
+    tt = (0.5:0.002:3).';
+    Rsmooth = xrdc.xrr.reflectivityModel(tt, stoFilmOnSto(25, 0.1), 1.5406, Footprint=false);
+    Rrough  = xrdc.xrr.reflectivityModel(tt, stoFilmOnSto(25, 1.5), 1.5406, Footprint=false);
+    tc.verifyLessThan(mean(Rrough(tt > 2)), mean(Rsmooth(tt > 2)));
+end
+
+function testReflectivityFootprintReducesLowAngle(tc)
+    tt = (0.05:0.01:3).';
+    sub = struct('material',"SrTiO3",'density',5.12,'thickness',Inf,'roughness',0);
+    Rno = xrdc.xrr.reflectivityModel(tt, sub, 1.5406, Footprint=false);
+    Rfp = xrdc.xrr.reflectivityModel(tt, sub, 1.5406, Footprint=true, FootprintDeg=0.6);
+    tc.verifyLessThan(Rfp(2), Rno(2));        % low-angle intensity reduced
+    tc.verifyEqual(Rfp(end), Rno(end), 'RelTol', 1e-9);  % unaffected above fill
+end
