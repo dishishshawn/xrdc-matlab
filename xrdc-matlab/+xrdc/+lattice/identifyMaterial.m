@@ -15,7 +15,8 @@ function R = identifyMaterial(peaks, lambda, opts)
 %     peaks  : one of
 %              - vector of peak 2-theta positions (degrees)
 %              - struct array from xrdc.peaks.findPeaks (.twoTheta, .counts)
-%              - scan struct (vector .twoTheta/.counts) -> findPeaks is run
+%              - scan struct (vector .twoTheta/.counts) -> findPeaks is
+%                run with auto prominence and 0.2-deg separation
 %     lambda : wavelength in A (default Cu Kalpha1 1.5406)
 %
 %   Name-Value
@@ -182,8 +183,9 @@ function [tt, counts] = normalizeInput(peaks)
            (isscalar(peaks) && isscalar(peaks.twoTheta)))
         tt = [peaks.twoTheta].'; counts = [peaks.counts].';
     elseif isstruct(peaks) && isscalar(peaks)   % scan struct
-        pk = xrdc.peaks.findPeaks(peaks, ...
-            'MinProminence', max(peaks.counts) * 0.05);
+        % Auto log-domain prominence; 0.2° separation merges the Kα1/Kα2
+        % substrate split before harmonic grouping.
+        pk = xrdc.peaks.findPeaks(peaks, 'MinSeparation', 0.2);
         if isempty(pk), tt = []; counts = []; return, end
         tt = [pk.twoTheta].'; counts = [pk.counts].';
     else

@@ -285,6 +285,29 @@ function testIdentifyTieBreakParsimony(tc)
     tc.verifyTrue(any(R.series.flags{1} == "ambiguous"));
 end
 
+function testIdentifyScanStructAutoFindsWeakFilm(tc)
+    % Scan-struct input runs auto peak detection. A film 3 decades below
+    % the substrate (0.1% of max counts — far under the old hardcoded 5%
+    % rule) must still be detected and identified.
+    lambda = 1.5406;
+    x = (20:0.01:75).';
+    y = 30 * ones(size(x));
+    cSTO = 3.905; cPTO = 4.1511;
+    for l = 1:3
+        ttS = 2*asind(l*lambda/(2*cSTO));
+        ttP = 2*asind(l*lambda/(2*cPTO));
+        y = y + 2e6 * exp(-(x - ttS).^2 / (2*0.02^2));
+        y = y + 2e3 * exp(-(x - ttP).^2 / (2*0.05^2));
+    end
+    scan = xrdc.io.emptyScan();
+    scan.twoTheta = x;
+    scan.counts   = y;
+    R = xrdc.lattice.identifyMaterial(scan, lambda, Substrate="SrTiO3");
+    tc.verifyTrue(R.substrate.found);
+    tc.verifyTrue(any(R.series.bestMatch == "PbTiO3"), ...
+        'weak PTO film series not identified from scan-struct input');
+end
+
 % ---------- real-data validation (gated) ----------
 
 function d = validationInputDir()
