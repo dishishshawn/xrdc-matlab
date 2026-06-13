@@ -3,8 +3,8 @@ function [kPar, kPerp] = toReciprocalSpace(scan, options)
 %   [kPar, kPerp] = xrdc.rsm.toReciprocalSpace(scan)
 %   [kPar, kPerp] = xrdc.rsm.toReciprocalSpace(scan, Name, Value, ...)
 %
-%   Implements the transform from ALGORITHM_SPEC §7.1 with the deliberate
-%   θ-asymmetry from xrdc1.pas:3293-3296:
+%   Implements the transform with the deliberate θ-asymmetry from
+%   xrdc1.pas:3293-3296 (see docs/SCIENTIFIC_ASSUMPTIONS.md §1.6):
 %
 %     θ_raw  = 2θ_point / 2            (uncorrected; used to build ω)
 %     ω      = secondAxis − (2θ_ctr/2) + θ_raw + ΔΩ   (radians)

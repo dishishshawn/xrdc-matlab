@@ -8,7 +8,7 @@ function scan = readRigakuRas(path)  %#ok<STOUT,INUSD>
 %     - Data block between *RAS_INT_START and *RAS_INT_END
 %     - Mapping MEAS_COND_AXIS_NAME to xrdc scanType
 %
-%   See ALGORITHM_SPEC.md §2.5 for the full target contract.
+%   See docs/RIGAKU_NOTES.md for the target contract.
 
     error('xrdc:io:notImplemented', ...
         ['Rigaku .ras parser not yet implemented. ', ...

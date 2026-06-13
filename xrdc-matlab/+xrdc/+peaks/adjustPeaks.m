@@ -8,7 +8,7 @@ function peaksOut = adjustPeaks(scan, peaks, options)
 %   half-height window is located, and the peak position is replaced by
 %   the **area bisector** of that window (not the centroid, not the
 %   parabola vertex — this is the Delphi convention, see
-%   ALGORITHM_SPEC §4.4).
+%   docs/SCIENTIFIC_ASSUMPTIONS.md §2.3).
 %
 %   Input
 %     scan       : scan struct with .twoTheta, .counts.

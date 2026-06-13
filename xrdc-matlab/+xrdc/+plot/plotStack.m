@@ -21,7 +21,7 @@ function h = plotStack(scans, options)
 %   Name/Value options
 %     'Palette'    default "lines" — a MATLAB colormap name or an
 %                  N×3 matrix of RGB rows. Replaces the Delphi random
-%                  per-scan colour (see ALGORITHM_SPEC §10 rationale).
+%                  per-scan colour (deterministic palette for reproducible figures).
 %     'LogY'       default true
 %     'LineWidth'  default 1.2 (1.5 for the first trace)
 %     'Title'      default ""

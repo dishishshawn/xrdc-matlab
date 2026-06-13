@@ -49,9 +49,3 @@ Work top to bottom; don't start the compile until every box above it is checked.
 - [ ] Package `XRDC.exe` + a short run note (Runtime version + download link — see
       README §7) for collaborators.
 - [ ] Tag the release in git so the binary is traceable to a commit.
-
----
-
-**Housekeeping note:** `CLAUDE.md` still points to `../PROJECT_PLAN.md` and
-`../ALGORITHM_SPEC.md`, which were removed in commit `453dfd5`. Those references are
-stale — worth cleaning up or restoring separately from this work.

@@ -4,7 +4,7 @@ function publicationStyle(ax, options)
 %   xrdc.plot.publicationStyle(ax)
 %   xrdc.plot.publicationStyle(ax, Name, Value, ...)
 %
-%   Implements the invariants from ALGORITHM_SPEC §10:
+%   Implements the publication-figure invariants:
 %     * Arial / Helvetica font
 %     * 18 pt tick labels, 20 pt axis labels, 22 pt title
 %     * line width 1.5 for lines already on the axes
@@ -26,7 +26,7 @@ function publicationStyle(ax, options)
 %     'Grid'           default false
 %     'MinorTicks'     default true
 %
-%   See ALGORITHM_SPEC §10 for rationale and defaults.
+%   Defaults match Schwaigert et al. JVST A 41, 022703 (2023), Fig 2.
 
     arguments
         ax                     (1,1) = gca

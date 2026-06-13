@@ -10,7 +10,7 @@ What we know about the files the Paik lab's Rigaku SmartLab produces, and how `x
 | --------- | ---------------------------------------------- | --------- |
 | `.txt`    | SmartLab ASCII export — 2-column intensity vs angle | **Yes** — primary ingest path |
 | `.hgx`    | GenX reflectivity-fit project file (HDF5)      | No — third-party fit software save state; contains simulated curves, fit parameters, optimiser logs. Not raw data. |
-| `.raw` / `.ras` | Rigaku binary / RAS ASCII as documented in ALGORITHM_SPEC §2.5 | Not observed in this lab. Parsers remain stubbed with a clear `xrdc:io:notImplemented` error. |
+| `.raw` / `.ras` | Rigaku binary / RAS ASCII (target contract sketched in the `readRigakuRaw` / `readRigakuRas` stub docstrings) | Not observed in this lab. Parsers remain stubbed with a clear `xrdc:io:notImplemented` error. |
 
 Only `.txt` is actually read by the pipeline. `.hgx` files are ignored.
 

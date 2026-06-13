@@ -25,7 +25,7 @@ function result = nelsonRiley(twoTheta, latticeValues)
 %     .rSquared      : coefficient of determination
 %
 %   Reference: xrdc3.pas line 284+, CalculateNelsonRiley. See also the
-%   regression uncertainty formula in ALGORITHM_SPEC.md §6.3.
+%   regression uncertainty formula in docs/SCIENTIFIC_ASSUMPTIONS.md §2.1.
 
     arguments
         twoTheta       (:,1) double {mustBePositive}
@@ -68,7 +68,7 @@ function result = nelsonRiley(twoTheta, latticeValues)
     ssTot = sum((latticeValues - yBar).^2);
     rSquared = 1 - ssRes / max(ssTot, eps);
 
-    % Closed-form OLS standard errors (ALGORITHM_SPEC.md §6.3), centered form:
+    % Closed-form OLS standard errors (docs/SCIENTIFIC_ASSUMPTIONS.md §2.1), centered form:
     %     Var(slope) = σ² / Sxx,   Var(b0) = σ² · (1/n + x̄²/Sxx),   σ² = RSS/(n-2)
     %
     % Note on Delphi parity: xrdc3.pas:281 writes

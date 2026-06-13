@@ -6,7 +6,8 @@ function result = fitPeak(scan, window, options)
 %   Modern replacement for the brute-force grid search in
 %   TForm8.DoFit (xrdc9.pas:161). Uses `lsqcurvefit` by default; a
 %   `'Method','bruteforce'` option keeps the old algorithm available for
-%   reproducing legacy analyses. See ALGORITHM_SPEC §5.
+%   reproducing legacy analyses. See docs/SCIENTIFIC_ASSUMPTIONS.md
+%   (§1.2 Poisson errors, §2.2 pseudo-Voigt form).
 %
 %   Input
 %     scan   : scan struct with .twoTheta, .counts.

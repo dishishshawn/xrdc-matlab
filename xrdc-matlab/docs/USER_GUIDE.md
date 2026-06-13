@@ -11,7 +11,7 @@ This guide covers installation, the data model, and the six core workflows:
 5. Reciprocal-space map (RSM) from multiple slices
 6. Material identification from (00l) peak positions
 
-For algorithm derivations see `../../ALGORITHM_SPEC.md`. For contribution conventions see `../CLAUDE.md`.
+For numerical-method assumptions and the deliberate divergences from the Delphi source see `SCIENTIFIC_ASSUMPTIONS.md`. For contribution conventions see `../CLAUDE.md`.
 
 ---
 
@@ -166,7 +166,7 @@ h     = xrdc.plot.plotRsm(scans, ...
           'ExportPath', 'out.png');
 ```
 
-The transform in `xrdc.rsm.toReciprocalSpace` preserves the θ-asymmetry documented in ALGORITHM_SPEC §7.1 (`θ_raw` builds ω; corrected `θ` feeds the k formulas). Do not override this — it matters when applying goniometer zero-offset corrections.
+The transform in `xrdc.rsm.toReciprocalSpace` preserves the θ-asymmetry documented in that function's docstring and in `SCIENTIFIC_ASSUMPTIONS.md` §1.6 (`θ_raw` builds ω; corrected `θ` feeds the k formulas). Do not override this — it matters when applying goniometer zero-offset corrections.
 
 For interactive goniometer-offset alignment, use `xrdc.rsm.setOffsetsInteractive` — click the known substrate peak in the RSM figure, enter the theoretical 2θ/ω, and the function returns `(ΔΘ, ΔΩ)` for use with `plotRsm`.
 
@@ -241,17 +241,17 @@ runtests('tests/testRsm.m')
 
 Tests that depend on real Paik-lab data files gate on file existence via `assumeTrue(isfile(...))` — they skip (not fail) when the data folder is absent. These are listed under each file's header.
 
-Verification plan (ALGORITHM_SPEC §13): V1–V7 can run from tests/; V8 (Rigaku 2θ range / step / counts match Rigaku's own software) is verified by the `testReadRigakuTxtRealFiles` integration test.
+Verification: the unit suites in `tests/` cover the core algorithms; the Rigaku 2θ range / step / counts match against Rigaku's own software is verified by the `testReadRigakuTxtRealFiles` integration test.
 
 ---
 
 ## 7. Known divergences from Delphi XRDC
 
-These are deliberate — documented in ALGORITHM_SPEC and enforced in tests:
+These are deliberate — documented in `SCIENTIFIC_ASSUMPTIONS.md` and enforced in tests:
 
 | Topic                          | Delphi XRDC                        | xrdc-matlab                                 |
 | ------------------------------ | ---------------------------------- | ------------------------------------------- |
-| Nelson–Riley SE (intercept)    | `xrdc3.pas:281` formula (off by 1/√n) | Textbook OLS (see ALGORITHM_SPEC §6.3)  |
+| Nelson–Riley SE (intercept)    | `xrdc3.pas:281` formula (off by 1/√n) | Textbook OLS (see `SCIENTIFIC_ASSUMPTIONS.md` §2.1)  |
 | Peak fitting default           | 20³ brute-force grid               | `lsqcurvefit` with Jacobian SEs. `'Method','bruteforce'` keeps the legacy path. |
 | `plotStack` colours            | Random RGB per trace               | Deterministic palette                       |
 | Auto-updater / gnuplot export  | Present                            | Dropped                                     |
@@ -265,5 +265,5 @@ These are deliberate — documented in ALGORITHM_SPEC and enforced in tests:
 
 - Read the function docstring first (`help xrdc.peaks.fitPeak`).
 - For algorithm questions, check the referenced line number in the original Delphi source.
-- For format questions see `docs/RIGAKU_NOTES.md` (Rigaku) and ALGORITHM_SPEC §2 (all formats).
+- For format questions see `RIGAKU_NOTES.md` (Rigaku); other readers are documented in their own function docstrings (`help xrdc.io.readXrdml`, etc.).
 - Ownership: Shawn Agarwal (shawnagarwal0@gmail.com), Paik group stakeholder.

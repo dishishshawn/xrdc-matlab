@@ -35,7 +35,7 @@ function s = makeSlice(tt_deg, omega_deg, lambda)
 end
 
 % =====================================================================
-% toReciprocalSpace — ALGORITHM_SPEC §7.1
+% toReciprocalSpace — θ-asymmetry & 2/λ convention (SCIENTIFIC_ASSUMPTIONS.md §1.6)
 % =====================================================================
 
 function testSymmetricReflection(testCase)

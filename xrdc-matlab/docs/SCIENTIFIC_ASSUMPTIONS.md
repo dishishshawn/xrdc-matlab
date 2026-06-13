@@ -223,7 +223,7 @@ This separates instrumental (Gaussian) and sample (Lorentzian) contributions cle
 
 **File:** `+xrdc/+peaks/adjustPeaks.m` (lines 97–117)
 
-**Current implementation.** The peak position is reset to the index that bisects the *area* of the half-height window — i.e. the cumulative-sum midpoint. The docstring explicitly notes this is "the Delphi convention, see ALGORITHM_SPEC §4.4" and "not the centroid, not the parabola vertex."
+**Current implementation.** The peak position is reset to the index that bisects the *area* of the half-height window — i.e. the cumulative-sum midpoint. The docstring explicitly notes this is "the Delphi convention" and "not the centroid, not the parabola vertex."
 
 **The assumption.** For perfectly symmetric peaks, area-bisector and centroid coincide. For:
 - **Asymmetric peaks** (e.g. unresolved Kα1/Kα2 doublet)

@@ -5,8 +5,8 @@ function scan = readRigakuRaw(path)  %#ok<STOUT,INUSD>
 %     - RAW1.01 / RAW1.02 (older SmartLab)
 %     - RAW4.x (newer)
 %
-%   See ALGORITHM_SPEC.md §2.5 for the target contract, and
-%   docs/RIGAKU_NOTES.md (once it exists) for reverse-engineering notes.
+%   See docs/RIGAKU_NOTES.md for the target contract and
+%   reverse-engineering notes.
 
     error('xrdc:io:notImplemented', ...
         ['Rigaku binary .raw parser not yet implemented. ', ...

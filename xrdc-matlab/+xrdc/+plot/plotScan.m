@@ -3,8 +3,9 @@ function h = plotScan(scan, options)
 %   h = xrdc.plot.plotScan(scan)
 %   h = xrdc.plot.plotScan(scan, Name, Value, ...)
 %
-%   Produces a figure that follows the invariants in ALGORITHM_SPEC §10
-%   (log-Y, Arial 18 pt ticks, white background, etc.). The caller can
+%   Produces a figure that follows the publication-style invariants
+%   (log-Y, Arial 18 pt ticks, white background, etc.) centralised in
+%   `xrdc.plot.publicationStyle`. The caller can
 %   override any of those via the Name/Value pairs forwarded to
 %   `xrdc.plot.publicationStyle`.
 %

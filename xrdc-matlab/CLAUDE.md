@@ -10,7 +10,7 @@ This file gives future Claude / AI sessions enough context to continue the port 
     1. Read Rigaku `.raw` natively — the original can't.
     2. Cleaner data handling than the Delphi version.
     3. Consistent publication-ready figure formatting.
-- Numerical-method assumptions and the deliberate divergences from the Delphi source (with `+xrdc/...:line` and `xrdcN.pas` references) live in `docs/SCIENTIFIC_ASSUMPTIONS.md`, with the user-facing divergence list in `docs/USER_GUIDE.md` §7. **Read these before changing any numerical routine.** (The former `../ALGORITHM_SPEC.md` / `../PROJECT_PLAN.md` were removed in commit 453dfd5; some docs still cite `ALGORITHM_SPEC §x` internally — treat those as pointers into SCIENTIFIC_ASSUMPTIONS.)
+- Numerical-method assumptions and the deliberate divergences from the Delphi source (with `+xrdc/...:line` and `xrdcN.pas` references) live in `docs/SCIENTIFIC_ASSUMPTIONS.md`, with the user-facing divergence list in `docs/USER_GUIDE.md` §7. **Read these before changing any numerical routine.** (The former `../ALGORITHM_SPEC.md` / `../PROJECT_PLAN.md` were removed in commit 453dfd5; their numerical content now lives in `docs/SCIENTIFIC_ASSUMPTIONS.md`, which the codebase cites in its place.)
 - The port is feature-complete (Phases 1–6); current status, what's done/gated/stubbed, lives in `docs/FEATURES.md`. Phasing note still applies in spirit: RSM depends on solid I/O and peak detection.
 
 ## Code conventions
