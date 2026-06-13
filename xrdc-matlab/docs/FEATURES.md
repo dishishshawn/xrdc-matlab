@@ -27,6 +27,7 @@ _Last reconciled: 2026-06-09._
 - ✅ φ scan (`phi`) — noise-floor pole detection + 360° wrap handling + n-fold
       symmetry report (`findPhiPeaks`); robust on weak films **[validated on PtO₂/TiO₂(101)]**
 - ✅ XRR — critical edge, Kiessig fringes, film thickness (`+xrr`)
+- ✅ XRR slab-model fit — Parratt + Névot–Croce, fits thickness/density/roughness with Jacobian errors (`fitReflectivity`, `reflectivityModel`, `opticalConstants`)
 - ✅ Reciprocal-space map (`area`) — load, transform, contour (`+rsm`)
 - ✅ Scan-type auto-detection from file content + name
 

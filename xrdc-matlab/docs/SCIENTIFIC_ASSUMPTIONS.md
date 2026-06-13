@@ -383,6 +383,46 @@ intense peaks (DATA_SWEEP findings, 2026).
 
 ---
 
+### 3.4 XRR slab-model fitting (Parratt + Névot–Croce), 2026-06-13
+
+**Files:** `+xrdc/+xrr/{opticalConstants,reflectivityModel,fitReflectivity}.m`,
+`+xrdc/+data/atomicScattering.json`.
+
+**Method.** Specular XRR is modelled by the Parratt recursion with Névot–Croce
+interface roughness `r' = r·exp(−2 k_{z,j} k_{z,j+1} σ²)`. Optical constants come
+from `δ,β = (rₑλ²/2π)·Σ Nⱼ f₁ⱼ,f₂ⱼ` using an embedded Henke/CXRO atomic-scattering
+table **fixed at Cu Kα (8047.8 eV)** — other energies raise
+`xrdc:xrr:unsupportedEnergy`. The fit minimises a **log-space** residual (XRR spans
+~6 decades), seeded from `analyzeFringes` (thickness) and `findCriticalEdge`
+(density), over film thickness, density, roughness, substrate roughness, scale,
+background, and a footprint fill angle.
+
+**Optimiser.** A multi-start bounded Nelder–Mead search over a fan of thickness
+seeds (the fringe-spacing estimate plus a fixed spread), polished by `lsqnonlin`
+(LM/trust-region); a Nelder–Mead-only path runs when the Optimization Toolbox is
+absent. The multi-start is necessary, not decorative: single-seed LM gets trapped
+in wrong fringe-count basins (recovering ~1 nm or ~55 nm instead of the true
+thickness). Parameter SEs come from the Jacobian covariance via `pinv`, so the
+identifiable parameters still get finite SEs when the scale/footprint columns are
+near-degenerate.
+
+**Assumptions / caveats.**
+- Single film on a semi-infinite substrate; sharp slabs with Gaussian-blurred
+  interfaces (Névot–Croce). No graded/SLD-profile layers, no multilayer (v1).
+- Density is fit at the film's nominal composition (δ ∝ density); composition is
+  not separable from density in XRR.
+- The footprint correction `R·min(1, sinθ/sinθ_fill)` is a simple knife-edge
+  illumination model; if the data is already footprint-corrected the fitted fill
+  angle goes to ~0.
+- **XRR is a phase problem: fits are non-unique.** The multi-start mitigates the
+  thickness multimodality, but degenerate density/roughness/scale trade-offs
+  remain. The fringe-spacing thickness (`analyzeFringes`) is an independent
+  cross-check; large disagreement means distrust the fit.
+- f₁/f₂ are tabulated only at Cu Kα; anomalous-dispersion fine structure near
+  absorption edges is not modelled beyond those fixed values.
+
+---
+
 ## Summary
 
 | Tier | Item | Lines |
@@ -401,5 +441,6 @@ intense peaks (DATA_SWEEP findings, 2026).
 | 3 | Savitzky-Golay edge handling | derivatives.m:66-67 |
 | 3 | d-spacing formula verification | dSpacingFromHKL.m:85-108 |
 | 3 | Log-domain auto prominence + unit-aware Poisson guard | findPeaks.m (autoDetect) |
+| 3 | XRR slab-model fitting (Parratt + Névot–Croce) | fitReflectivity.m, reflectivityModel.m, opticalConstants.m |
 
 Before peer distribution, **Tier 1.3 (Rigaku wavelength)** and **Tier 1.5 (Cu Kα1 default 8049.19 vs NIST 8047.8)** are the highest priority because they affect every Rigaku file users will throw at the tool with no obvious diagnostic.

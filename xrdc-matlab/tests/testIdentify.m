@@ -8,10 +8,10 @@ end
 
 function testLoadMaterialsAll(tc)
     M = xrdc.lattice.loadMaterials();
-    tc.verifyEqual(numel(M), 4);
+    tc.verifyGreaterThanOrEqual(numel(M), 7);
     tc.verifyTrue(all(isfield(M, {'name','aliases','system','a','c','role','elastic','composition'})));
     names = string({M.name});
-    tc.verifyTrue(all(ismember(["SrTiO3","SrRuO3","PbTiO3","PZT"], names)));
+    tc.verifyTrue(all(ismember(["SrTiO3","SrRuO3","PbTiO3","PZT","LaAlO3","TiO2","WO3"], names)));
 end
 
 function testLoadMaterialsLookupByAlias(tc)
@@ -306,6 +306,22 @@ function testIdentifyScanStructAutoFindsWeakFilm(tc)
     tc.verifyTrue(R.substrate.found);
     tc.verifyTrue(any(R.series.bestMatch == "PbTiO3"), ...
         'weak PTO film series not identified from scan-struct input');
+end
+
+function testLoadMaterialsHasXrrFields(tc)
+    % XRR needs formula + bulk density on every material, and the new
+    % substrate/film entries LAO, TiO2, WO3 must be present.
+    M = xrdc.lattice.loadMaterials();
+    tc.verifyTrue(all(isfield(M, {'formula','densityBulk'})), ...
+        'formula/densityBulk missing from materials.json');
+    names = string({M.name});
+    for want = ["LaAlO3","TiO2","WO3"]
+        tc.verifyTrue(any(names == want), sprintf('%s entry missing', want));
+    end
+    sto = xrdc.lattice.loadMaterials("SrTiO3");
+    tc.verifyEqual(string(sto.formula), "SrTiO3");
+    tc.verifyGreaterThan(sto.densityBulk, 4.5);   % STO ~5.12 g/cm^3
+    tc.verifyLessThan(sto.densityBulk, 5.5);
 end
 
 % ---------- real-data validation (gated) ----------

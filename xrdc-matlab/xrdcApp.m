@@ -318,6 +318,13 @@ function buildAnalysisPanel(fig)
             row = addEdit (g, row, 'Fringe 2θ min',  '0',   @(v) onParamChange(fig, 'xrrMin',    v));
             row = addEdit (g, row, 'Fringe 2θ max',  '5.0', @(v) onParamChange(fig, 'xrrMax',    v));
             row = addEdit (g, row, 'Min prom (%)',   '1.5', @(v) onParamChange(fig, 'xrrProm',   v));
+            films = xrrMaterials("film");
+            subs  = xrrMaterials("substrate");
+            row = addDrop (g, row, 'Film',      films, films{1}, ...
+                                                      @(v) onParamChange(fig, 'xrrFilm', v));
+            row = addDrop (g, row, 'Substrate', subs,  subs{1}, ...
+                                                      @(v) onParamChange(fig, 'xrrSub',  v));
+            row = addXrrFitButton(g, row, fig); %#ok<NASGU>
         case 'phi'
             row = addEdit (g, row, 'Noise σ (k)',    '6',   @(v) onParamChange(fig, 'noiseSigmas', v));
         case 'rsm'
@@ -375,6 +382,17 @@ function subs = identifiableSubstrates()
     subs = cellstr(string({M(ok).name}));
 end
 
+function items = xrrMaterials(role)
+%XRRMATERIALS  Dropdown items: materials usable for XRR (have formula+density).
+    M = xrdc.lattice.loadMaterials();
+    hasXrr = arrayfun(@(m) isfield(m,'formula') && isfield(m,'densityBulk') ...
+        && strlength(string(m.formula)) > 0, M);
+    roleOk = ismember(string({M.role}), [role, "both"]);
+    keep = hasXrr & roleOk(:).';
+    items = cellstr(string({M(keep).name}));
+    if isempty(items), items = cellstr(string({M(hasXrr).name})); end
+end
+
 function row = addIdentifyButton(g, row, fig)
     T = appTheme();
     b = uibutton(g, 'Text', 'Identify Material', ...
@@ -383,6 +401,45 @@ function row = addIdentifyButton(g, row, fig)
         'ButtonPushedFcn', @(~,~) onIdentifyMaterial(fig));
     b.Layout.Row = row; b.Layout.Column = [1 2];
     row = row + 1;
+end
+
+function row = addXrrFitButton(g, row, fig)
+    T = appTheme();
+    b = uibutton(g, 'Text', 'Fit model', ...
+        'FontName', T.font, 'FontSize', 12, ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
+        'ButtonPushedFcn', @(~,~) onXrrFit(fig));
+    b.Layout.Row = row; b.Layout.Column = [1 2];
+    row = row + 1;
+end
+
+function onXrrFit(fig)
+%ONXRRFIT  Run the slab-model XRR fit on the current scan and overlay it.
+    st = fig.UserData;
+    if isempty(st.scan), return, end
+    film = getStr(st.params, 'xrrFilm', 'PbTiO3');
+    sub  = getStr(st.params, 'xrrSub',  'SrTiO3');
+    try
+        res = xrdc.xrr.fitReflectivity(st.scan, Film=string(film), ...
+            Substrate=string(sub));
+    catch ME
+        uialert(fig, sprintf('XRR fit failed:\n\n%s', ME.message), ...
+            'Fit model', 'Icon', 'error');
+        return
+    end
+    ax = st.ax;
+    hold(ax, 'on');
+    plot(ax, st.scan.twoTheta, max(res.modelCurve, 1), '-', ...
+        'Color', [0.85 0.2 0.2], 'LineWidth', 1.5);
+    hold(ax, 'off');
+    lines = { ...
+        sprintf('Slab-model fit (%s on %s):', film, sub), '', ...
+        sprintf('  thickness = %.2f ± %.2f nm', res.thicknessNm, res.thicknessSeNm), ...
+        sprintf('  density   = %.2f g/cm³ (%.0f%% of bulk)', res.densityGcc, 100*res.densityFraction), ...
+        sprintf('  roughness = %.2f nm (film), %.2f nm (interface)', ...
+            res.filmRoughnessNm, res.substrateRoughnessNm), ...
+        sprintf('  R² = %.4f   method = %s', res.rSquared, res.method)};
+    writeResults(fig, lines);
 end
 
 function T = appTheme()

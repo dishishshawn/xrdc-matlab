@@ -10,7 +10,9 @@
       "role": "both",
       "elastic": { "nu": 0.232 },
       "composition": null,
-      "refs": "a = 3.905 A (Substrates.def / substrates.json); nu = 0.232 (commonly used STO biaxial Poisson ratio)"
+      "refs": "a = 3.905 A (Substrates.def / substrates.json); nu = 0.232 (commonly used STO biaxial Poisson ratio)",
+      "formula": "SrTiO3",
+      "densityBulk": 5.12
     },
     {
       "name": "SrRuO3",
@@ -21,7 +23,9 @@
       "role": "film",
       "elastic": { "nu": 0.30 },
       "composition": null,
-      "refs": "pseudocubic a = 3.93 A (orthorhombic SRO treated pseudocubically, standard for (00l) film work); nu = 0.30 nominal perovskite value"
+      "refs": "pseudocubic a = 3.93 A (orthorhombic SRO treated pseudocubically, standard for (00l) film work); nu = 0.30 nominal perovskite value",
+      "formula": "SrRuO3",
+      "densityBulk": 6.49
     },
     {
       "name": "PbTiO3",
@@ -32,7 +36,9 @@
       "role": "film",
       "elastic": { "nu": 0.30 },
       "composition": null,
-      "refs": "a = 3.904, c = 4.152 A (Shirane & Hoshino 1951 tetragonal PbTiO3); nu = 0.30 nominal"
+      "refs": "a = 3.904, c = 4.152 A (Shirane & Hoshino 1951 tetragonal PbTiO3); nu = 0.30 nominal",
+      "formula": "PbTiO3",
+      "densityBulk": 7.97
     },
     {
       "name": "PZT",
@@ -47,7 +53,48 @@
         "a": [3.904, 3.93, 3.96, 3.99, 4.01, 4.036],
         "c": [4.152, 4.15, 4.149, 4.148, 4.147, 4.146]
       },
-      "refs": "nominal entry = MPB 52/48; composition anchors interpolated from the tetragonal-side phase data of Jaffe, Cook & Jaffe, Piezoelectric Ceramics (1971) / Shirane & Suzuki (1952); approximate +-0.01 A, adequate for ID windows"
+      "refs": "nominal entry = MPB 52/48; composition anchors interpolated from the tetragonal-side phase data of Jaffe, Cook & Jaffe, Piezoelectric Ceramics (1971) / Shirane & Suzuki (1952); approximate +-0.01 A, adequate for ID windows",
+      "formula": "PbZr0.52Ti0.48O3",
+      "densityBulk": 8.0
+    },
+    {
+      "name": "LaAlO3",
+      "aliases": ["LAO", "lanthanum aluminate"],
+      "system": "cubic",
+      "a": 3.789,
+      "c": 3.789,
+      "role": "substrate",
+      "elastic": { "nu": 0.24 },
+      "composition": null,
+      "refs": "pseudocubic a = 3.789 A (rhombohedral LAO treated pseudocubically); nu ~ 0.24",
+      "formula": "LaAlO3",
+      "densityBulk": 6.52
+    },
+    {
+      "name": "TiO2",
+      "aliases": ["rutile", "titanium dioxide"],
+      "system": "tetragonal",
+      "a": 4.593,
+      "c": 2.959,
+      "role": "substrate",
+      "elastic": { "nu": 0.28 },
+      "composition": null,
+      "refs": "rutile TiO2 a = 4.593, c = 2.959 A (JCPDS 21-1276); nu ~ 0.28 nominal",
+      "formula": "TiO2",
+      "densityBulk": 4.23
+    },
+    {
+      "name": "WO3",
+      "aliases": ["tungsten trioxide"],
+      "system": "cubic",
+      "a": 3.84,
+      "c": 3.84,
+      "role": "film",
+      "elastic": { "nu": 0.27 },
+      "composition": null,
+      "refs": "pseudocubic WO3 a ~ 3.84 A (monoclinic WO3 treated pseudocubically); nu ~ 0.27 nominal",
+      "formula": "WO3",
+      "densityBulk": 7.16
     }
   ]
 }

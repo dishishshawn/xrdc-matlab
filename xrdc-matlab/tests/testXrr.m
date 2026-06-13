@@ -47,6 +47,43 @@ function scan = syntheticXrr(tNm, lambda, twoThetaC, twoThetaEnd)
 end
 
 % =========================================================================
+% opticalConstants
+% =========================================================================
+
+function testOpticalConstantsVacuumLikeSmall(tc)
+    % Low-Z, low-density gives small delta/beta; both strictly positive.
+    [d, b] = xrdc.xrr.opticalConstants("SiO2", 2.2, 1.5406);
+    tc.verifyGreaterThan(d, 0);
+    tc.verifyGreaterThan(b, 0);
+    tc.verifyLessThan(d, 1e-4);
+end
+
+function testOpticalConstantsStoCriticalAngle(tc)
+    % SrTiO3 at bulk density: the grazing critical angle thetaC = sqrt(2*delta)
+    % is ~0.27-0.30 deg (2*thetaC ~ 0.55 deg, matching the S-series XRR edge).
+    [delta, ~] = xrdc.xrr.opticalConstants("SrTiO3", 5.12, 1.5406);
+    thetaCdeg = sqrt(2*delta) * 180/pi;
+    tc.verifyGreaterThan(thetaCdeg, 0.24);
+    tc.verifyLessThan(thetaCdeg, 0.32);
+end
+
+function testOpticalConstantsByMaterialName(tc)
+    [d1, b1] = xrdc.xrr.opticalConstants("SrTiO3", 5.12, 1.5406);
+    [d2, b2] = xrdc.xrr.opticalConstants("SrTiO3", 5.12, 1.5406);
+    tc.verifyEqual(d1, d2); tc.verifyEqual(b1, b2);
+end
+
+function testOpticalConstantsRejectsNonCuKa(tc)
+    tc.verifyError(@() xrdc.xrr.opticalConstants("SrTiO3", 5.12, 0.7093), ...
+        'xrdc:xrr:unsupportedEnergy');
+end
+
+function testOpticalConstantsUnknownElement(tc)
+    tc.verifyError(@() xrdc.xrr.opticalConstants("XyO2", 5, 1.5406), ...
+        'xrdc:xrr:unknownElement');
+end
+
+% =========================================================================
 % findCriticalEdge
 % =========================================================================
 
@@ -175,4 +212,148 @@ function testAnalyzeFringesRealSampleS25(tc)
     tc.verifyEqual(res.thicknessQuadNm, 40, 'AbsTol', 1.5);
     tc.verifyEqual(res.thicknessFftNm,  40, 'AbsTol', 1.5);
     tc.verifyGreaterThan(res.fringeSnr, 3);
+end
+
+% =========================================================================
+% reflectivityModel (Parratt + Nevot-Croce)
+% =========================================================================
+
+function lyr = stoFilmOnSto(tNm, rough)
+%Helper: STO film (slightly off-density -> fringes) on STO substrate.
+    lyr = struct('material', {"SrTiO3","SrTiO3"}, ...
+                 'density',  {4.8, 5.12}, ...
+                 'thickness',{tNm, Inf}, ...
+                 'roughness',{rough, rough});
+end
+
+function testReflectivityBareSubstrateFresnel(tc)
+    % No film: a single semi-infinite substrate. R -> ~1 well below the
+    % critical edge and falls steeply past it (Fresnel behaviour).
+    tt = (0.05:0.01:3).';
+    sub = struct('material',"SrTiO3",'density',5.12,'thickness',Inf,'roughness',0);
+    R = xrdc.xrr.reflectivityModel(tt, sub, 1.5406, Footprint=false);
+    tc.verifyGreaterThan(mean(R(tt < 0.2)), 0.9);     % near total reflection
+    tc.verifyLessThan(R(end), 1e-3);                  % strongly attenuated at 3 deg
+    tc.verifyTrue(all(R >= 0 & R <= 1.0001));
+end
+
+function testReflectivityFilmProducesFringes(tc)
+    tt = (0.5:0.002:3).';
+    R = xrdc.xrr.reflectivityModel(tt, stoFilmOnSto(30, 0.2), 1.5406, Footprint=false);
+    % A finite film must imprint oscillations: count sign changes of the
+    % log-reflectivity slope -> several fringes over [1,3] deg.
+    seg = R(tt > 1 & tt < 3);
+    dl  = diff(log10(max(seg, 1e-12)));
+    nWiggle = sum(abs(diff(sign(dl))) > 0);
+    tc.verifyGreaterThan(nWiggle, 4);
+end
+
+function testReflectivityRoughnessDampsFringes(tc)
+    tt = (0.5:0.002:3).';
+    Rsmooth = xrdc.xrr.reflectivityModel(tt, stoFilmOnSto(25, 0.1), 1.5406, Footprint=false);
+    Rrough  = xrdc.xrr.reflectivityModel(tt, stoFilmOnSto(25, 1.5), 1.5406, Footprint=false);
+    tc.verifyLessThan(mean(Rrough(tt > 2)), mean(Rsmooth(tt > 2)));
+end
+
+function testReflectivityFootprintReducesLowAngle(tc)
+    tt = (0.05:0.01:3).';
+    sub = struct('material',"SrTiO3",'density',5.12,'thickness',Inf,'roughness',0);
+    Rno = xrdc.xrr.reflectivityModel(tt, sub, 1.5406, Footprint=false);
+    Rfp = xrdc.xrr.reflectivityModel(tt, sub, 1.5406, Footprint=true, FootprintDeg=0.6);
+    tc.verifyLessThan(Rfp(2), Rno(2));        % low-angle intensity reduced
+    tc.verifyEqual(Rfp(end), Rno(end), 'RelTol', 1e-9);  % unaffected above fill
+end
+
+% =========================================================================
+% fitReflectivity
+% =========================================================================
+
+function scan = simulatedXrrScan(tNm, densGcc, roughNm)
+%Helper: a physically-consistent XRR scan from reflectivityModel + Poisson.
+    tt = (0.1:0.004:4).';
+    layers = struct('material', {"SrTiO3","SrTiO3"}, ...
+                    'density',  {densGcc, 5.12}, ...
+                    'thickness',{tNm, Inf}, ...
+                    'roughness',{roughNm, roughNm});
+    R = xrdc.xrr.reflectivityModel(tt, layers, 1.5406, Footprint=false);
+    scale = 1e6; bg = 5;
+    rng(7);
+    lam = scale * R + bg;
+    counts = max(1, poissrnd_local(lam));
+    scan = xrdc.io.emptyScan();
+    scan.twoTheta = tt; scan.counts = counts; scan.lambda = 1.5406;
+    scan.scanType = "twoThetaOmega"; scan.sourceFormat = "synthetic";
+end
+
+function y = poissrnd_local(lam)
+%Helper: Poisson draw without the Statistics Toolbox.
+    y = zeros(size(lam));
+    for i = 1:numel(lam)
+        L = lam(i);
+        if L < 30
+            k = 0; p = 1; Lexp = exp(-L);
+            while true
+                k = k + 1; p = p * rand;
+                if p <= Lexp, y(i) = k - 1; break; end
+            end
+        else
+            y(i) = max(0, round(L + sqrt(L) * randn));
+        end
+    end
+end
+
+function testFitReflectivityRoundTrip(tc)
+    scan = simulatedXrrScan(28, 4.9, 0.4);
+    res = xrdc.xrr.fitReflectivity(scan, Film="SrTiO3", Substrate="SrTiO3");
+    tc.verifyEqual(res.thicknessNm, 28, 'RelTol', 0.10);
+    tc.verifyEqual(res.densityGcc,  4.9, 'RelTol', 0.20);
+    tc.verifyGreaterThan(res.filmRoughnessNm, 0);
+    tc.verifyLessThan(res.filmRoughnessNm, 1.5);
+    tc.verifyTrue(res.converged);
+    tc.verifyTrue(isfinite(res.thicknessSeNm) && res.thicknessSeNm > 0);
+end
+
+function testFitReflectivitySeedsFromFringes(tc)
+    scan = simulatedXrrScan(35, 5.0, 0.3);
+    res  = xrdc.xrr.fitReflectivity(scan, Film="SrTiO3", Substrate="SrTiO3");
+    tc.verifyLessThanOrEqual(res.rssFinal, res.rssSeed + 1e-9);
+end
+
+function testFitReflectivityUnknownMaterialErrors(tc)
+    scan = simulatedXrrScan(20, 5.0, 0.3);
+    tc.verifyError(@() xrdc.xrr.fitReflectivity(scan, Film="Unobtainium", ...
+        Substrate="SrTiO3"), 'xrdc:lattice:unknownMaterial');
+end
+
+% ---------- fitReflectivity: real data (gated on the local data dump) ----------
+
+function d = xrrDataDir()
+    d = fullfile(fileparts(mfilename('fullpath')), '..', '..', 'data');
+end
+
+function res = fitRealXrr(tc, fname, film, sub)
+    p = fullfile(xrrDataDir(), fname);
+    tc.assumeTrue(isfile(p), sprintf('XRR scan not present: %s', fname));
+    scan = xrdc.io.readScan(p);
+    res = xrdc.xrr.fitReflectivity(scan, Film=film, Substrate=sub);
+end
+
+function testFitReflectivityS25Real(tc)
+    res = fitRealXrr(tc, ...
+        'TR_S25_SRO_STO(100)_700c_100mT_10500sh_5hz_XRR_05062026.txt', ...
+        "SrRuO3", "SrTiO3");
+    tc.verifyGreaterThan(res.thicknessNm, 30);
+    tc.verifyLessThan(res.thicknessNm, 50);
+    tc.verifyGreaterThan(res.filmRoughnessNm, 0);
+    tc.verifyLessThan(res.filmRoughnessNm, 5);
+    tc.verifyGreaterThan(res.densityFraction, 0.5);
+    tc.verifyLessThan(res.densityFraction, 1.3);
+end
+
+function testFitReflectivityS08Real(tc)
+    res = fitRealXrr(tc, ...
+        'TR_S08_PTO_STO(100)_550c_200mT_5000sh_3hz_XRR_04132026.txt', ...
+        "PbTiO3", "SrTiO3");
+    tc.verifyGreaterThan(res.thicknessNm, 15);
+    tc.verifyLessThan(res.thicknessNm, 40);
 end

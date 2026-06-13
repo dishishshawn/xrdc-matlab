@@ -135,6 +135,26 @@ fprintf('d = %.1f ± %.1f nm\n', thick.thicknessFitNm, thick.thicknessFitSeNm);
 
 `thicknessFromFringes` fits `sin(θ_i)` vs fringe index and returns both the N-fringe closed form and the fit thickness with uncertainty.
 
+For thickness **plus density and roughness**, fit the full reflectivity curve with
+a Parratt slab model instead of just the fringe spacing:
+
+```matlab
+scan = xrdc.io.readScan(path);
+res  = xrdc.xrr.fitReflectivity(scan, Film="SrRuO3", Substrate="SrTiO3");
+fprintf('%.1f ± %.1f nm, %.0f%% of bulk density\n', ...
+    res.thicknessNm, res.thicknessSeNm, 100*res.densityFraction);
+```
+
+`fitReflectivity` seeds itself from `analyzeFringes` (thickness) and the critical
+edge (density), then fits thickness, density, roughness, scale, background, and a
+footprint angle in log space. Because XRR is strongly multimodal in thickness, it
+runs a multi-start Nelder–Mead search (a fan of thickness seeds around the fringe
+estimate) and polishes the best basin with `lsqnonlin` (a Nelder–Mead-only path
+runs without the Optimization Toolbox). Keep `analyzeFringes` for a quick
+thickness; use the fit when you need density/roughness or have rough/thin films.
+Cross-check the two thicknesses — large disagreement flags a poor fit (XRR fits are
+non-unique; see SCIENTIFIC_ASSUMPTIONS §3.4).
+
 ### 4.3 Rocking curve — FWHM in arcsec
 
 `examples/demoRockingCurve.m` — Lorentzian fit on a ±0.5° window; converts FWHM from degrees to arcsec.
