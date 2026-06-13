@@ -74,6 +74,11 @@ single crash. Peak positions and thicknesses are physically sensible throughout.
    66–69 peaks; S10's top three are all within 0.14° of 46.5° — the Kα-split substrate peak
    counted several times). Not wrong, but a higher default `MinProminence` for θ-2θ would
    reduce noise picks.
+   _Update 2026-06-12: fixed — `findPeaks` now defaults to a log-domain auto
+   prominence with a unit-aware Poisson noise guard, and the GUI θ-2θ path adds a
+   0.2° separation (Kα merge). The 66/69-peak blowups on S10/S06 are now 3/2 peaks;
+   gated regression tests in `tests/testPeaks.m` pin S04/S05/S06/S10/S11. See
+   `docs/superpowers/specs/2026-06-12-auto-prominence-design.md`._
 4. **Single RSM `.xrdml` slices detect as `scanType = "unknown"`** (#28–30, #34). They read
    fine (255 pts each) but aren't recognized as RSM; area assembly needs `readXrdmlArea`.
 

@@ -32,6 +32,7 @@ _Last reconciled: 2026-06-09._
 
 ## Peak detection & fitting (`+xrdc/+peaks`)
 - ✅ Peak detection — `findPeaks` (Signal Processing, with `findpeaks_fallback`)
+- ✅ Auto prominence — log-domain (0.3 decades) + unit-aware Poisson guard; default when `MinProminence` omitted
 - ✅ Delphi-compatible legacy mode — `findPeaksLegacy`
 - ✅ Profile fits — `fitPeak`, shapes: **lorentz** (default) · **gauss** · **pseudoVoigt**
 - ✅ Jacobian-based parameter standard errors (Optimization Toolbox path)

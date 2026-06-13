@@ -339,28 +339,47 @@ Triclinic (a, b, c, α, β, γ):
 
 ---
 
-### 3.3 Default 1.5% prominence threshold may miss low-count peaks
+### 3.3 Auto prominence: log-domain criterion + unit-aware Poisson guard (replaced the 1.5% default, 2026-06-12)
 
-**File:** `+xrdc/+peaks/findPeaks.m:86–88`
+**File:** `+xrdc/+peaks/findPeaks.m` (`autoDetect`, `estimateQuantum`)
 
-**Current implementation.**
-```matlab
-if isnan(minProm)
-    minProm = max(1, 0.015 * (max(y) - min(y)));
-end
-```
-Default MinPeakProminence = 1.5% of the count range, floor of 1.
+**Current implementation.** When `MinProminence` is omitted, a peak must
+(a) rise ≥ 0.3 decades above its neighbouring troughs on `log10(max(counts,1))`
+(scale-invariant shape test) and (b) pass a Poisson significance test in *photon*
+units: with `q` = the estimated count quantum, `N = counts/q`, `Nbg = bg/q`,
+`bg = movmedian(counts, ~1°)`, require `z = (N − Nbg)/sqrt(N + Nbg + 1) ≥ 5`.
+Explicit numeric `MinProminence` keeps the fixed linear threshold.
 
-**The assumption.** This works well for high-statistics scans where the dominant peak is, say, 10⁵ counts and the smallest visible peak is 10³ counts — 1.5% threshold = ~1500 counts, which passes the 10³ peak.
+**The assumptions.**
+- 0.3 decades (~2×) reflects how peaks are judged on the standard log-intensity
+  plot. Calibrated on the Paik-group PTO/STO and PTO/LAO θ-2θ scans (the
+  `validation/DATA_SWEEP.md` data dump) via `validation/runAutoProminence.m`.
+- The guard is **unit-aware via the count quantum** `q` (`estimateQuantum`): raw
+  photon-count data has `q = 1`; Rigaku counts-per-second exports show one photon
+  as a small fixed intensity (~4.5–15 cps here) with a baseline dominated by exact
+  zeros. When ≥ 5% of samples are exactly 0, `q` is the 1st percentile of the
+  positive values (the single-photon floor); otherwise `q = 1`. This makes the 5σ
+  test correct for both raw counts and cps — the earlier `5·sqrt(max(bg,1))` guard
+  assumed raw counts and floored σ at 1 *count*, so on cps data (median background
+  0) it became a flat 5-count bar that single-photon blips cleared, flooding real
+  scans with hundreds of false peaks (e.g. 647 on S05).
+- Using the peak's own `N` in the variance makes the test a difference-of-Poissons,
+  slightly stricter than `sqrt(Nbg)` for strong peaks (which pass by orders of
+  magnitude anyway) and decisive against single-photon blips (z ≈ 1).
+- **Conservative by design:** the 5σ bar omits marginal ~3× background features.
+  On weak-film scans (e.g. S05/S04/S10) this returns the substrate series only;
+  genuinely strong films (S11, ~10× background) are detected. Users dig into weak
+  films with an explicit `MinProminence`. This is a deliberate false-positive /
+  false-negative trade chosen by the project owner.
+- **Known fragility:** the "≥ 5% exact zeros" quantum trigger is a hard threshold.
+  Data hovering near 5% zeros can flip `q` discontinuously (1 ↔ ~5) and shift which
+  marginal peaks pass. Real Rigaku scans sit at 57–70% zeros — far from the cliff —
+  so this is latent, not active; revisit (e.g. soft-blend or hysteresis) if a scan
+  near the boundary ever misbehaves.
 
-For **low-count regimes** (XRR fringes near the critical edge, fingerprint scans on weak samples), the dominant feature might be 10² counts and the fringes might be 10–20 counts. Threshold = 1.5 counts which is below Poisson noise → false positives.
-
-**Research prompt.**
-
-> A peak-detector defaults `MinPeakProminence = max(1, 0.015 × (max(y) − min(y)))` for an XRD count trace.
-> 1. For low-count XRR fringes (peak amplitudes 10–50 counts on background ~100 counts), what false-positive rate does this default produce? Compare with `MinPeakProminence = 3·sqrt(median(y))` (Poisson 3-sigma) or `5·sqrt(median(y))`.
-> 2. Recommend a default that auto-scales sensibly across high-statistics θ-2θ and low-statistics XRR scans. Should the threshold be different depending on whether the y-axis is plotted log or linear?
-> 3. Confirm that 0.05° default `MinSeparation` is appropriate for HRXRD (step ~0.002°–0.005°) and for Bragg-Brentano (step ~0.02°). Cite literature on typical peak-separation thresholds.
+**Old default for reference (removed):** `max(1, 0.015·(max−min))` — missed
+low-count film peaks next to 10⁶-count substrate peaks and over-segmented sharp
+intense peaks (DATA_SWEEP findings, 2026).
 
 ---
 
@@ -381,6 +400,6 @@ For **low-count regimes** (XRR fringes near the critical edge, fingerprint scans
 | 2 | movmean background bias | subtractBackground.m |
 | 3 | Savitzky-Golay edge handling | derivatives.m:66-67 |
 | 3 | d-spacing formula verification | dSpacingFromHKL.m:85-108 |
-| 3 | 1.5% prominence default | findPeaks.m:86-88 |
+| 3 | Log-domain auto prominence + unit-aware Poisson guard | findPeaks.m (autoDetect) |
 
 Before peer distribution, **Tier 1.3 (Rigaku wavelength)** and **Tier 1.5 (Cu Kα1 default 8049.19 vs NIST 8047.8)** are the highest priority because they affect every Rigaku file users will throw at the tool with no obvious diagnostic.

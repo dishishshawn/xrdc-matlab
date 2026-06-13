@@ -121,6 +121,8 @@ T    = xrdc.lattice.simulatePattern( ...
 h    = xrdc.plot.plotScan(scan, 'Title', "PbTiO_3/SrTiO_3 — θ-2θ");
 ```
 
+Omit `'MinProminence'` to use the automatic log-domain criterion (see §4.6).
+
 ### 4.2 XRR with Kiessig-fringe thickness
 
 `examples/demoXRR.m` — specular reflectivity, fringe detection, thickness from periodicity.
@@ -175,7 +177,7 @@ observed peaks (database: SrTiO₃, SrRuO₃, PbTiO₃, PZT in `+xrdc/+data/mate
 
 ```matlab
 scan = xrdc.io.readScan(path);
-pk   = xrdc.peaks.findPeaks(scan, 'MinProminence', 0.005*max(scan.counts));
+pk   = xrdc.peaks.findPeaks(scan);   % auto: log-domain prominence
 R    = xrdc.lattice.identifyMaterial(pk, scan.lambda, Substrate="SrTiO3");
 R.series          % one row per phase: c, ranked candidates, scores, flags
 ```
@@ -193,6 +195,16 @@ a (RSM or asymmetric reflection) to deconvolve.
 In the GUI, load a θ-2θ scan, pick the substrate, and click **Identify Material**:
 matched peaks get material + (00l) labels and the ranked report appears in the
 Results area.
+
+Peak detection defaults to **auto** prominence: a peak must rise ≥ 0.3 decades
+above its neighbouring troughs on the log-intensity curve and pass a unit-aware
+Poisson significance test (≥ 5σ on photon counts, correct for both raw-count and
+counts-per-second data), so a confident 10³-count film peak and a 10⁶-count
+substrate peak are both found with no threshold tuning. It is deliberately
+conservative — marginal bumps only ~3× above local background are treated as
+noise, so very weak films may not appear automatically; type a number into the
+GUI's **Min prom (%)** field (a percentage of the maximum count) to dig deeper.
+The auto path also merges the Kα₁/Kα₂ substrate split (0.2° separation).
 
 ---
 
@@ -245,6 +257,7 @@ These are deliberate — documented in ALGORITHM_SPEC and enforced in tests:
 | Auto-updater / gnuplot export  | Present                            | Dropped                                     |
 | Picker `.596` / `.1035` files  | Supported                          | Dropped (obsolete)                          |
 | German-locale decimal on write | Yes                                | Never write comma decimals                  |
+| Automatic peak prominence       | Slope-threshold detectors with manually tuned sensitivities | When `MinProminence` is omitted, `findPeaks` selects peaks by log-domain prominence (≥ 0.3 decades above neighbouring troughs) plus a unit-aware Poisson significance guard, instead of a fixed linear threshold. |
 
 ---
 
