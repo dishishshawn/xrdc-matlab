@@ -449,6 +449,90 @@ function testFindPhiPeaksFlagsBoundaryWrap(tc)
     tc.verifyGreaterThan(info.wrapRepeats(1).twoTheta, 150);
 end
 
+% ---------- auto prominence: real data (gated on the local data dump) ----------
+
+function d = dataDumpDir()
+%Helper (not a test): repo-root data dump, anchored on this file's location
+%   (the unittest runner cd's into tests/, so cwd-relative paths are fragile).
+    d = fullfile(fileparts(mfilename('fullpath')), '..', '..', 'data');
+end
+
+function pk = autoPeaks(tc, fname)
+%Helper (not a test): gated read + auto peak detection, GUI-equivalent call.
+    p = fullfile(dataDumpDir(), fname);
+    tc.assumeTrue(isfile(p), sprintf('data dump scan not present: %s', fname));
+    scan = xrdc.io.readScan(p);
+    pk = xrdc.peaks.findPeaks(scan, 'MinSeparation', 0.2);
+end
+
+function verifySTOSubstrate(tc, pk)
+%Helper (not a test): the STO 001/002/003 triplet present, once each, at nominal.
+    tt = [pk.twoTheta];
+    for ref = [22.75, 46.47, 72.57]
+        tc.verifyEqual(nnz(abs(tt - ref) < 0.05), 1, ...
+            sprintf('expected exactly one peak within 0.05 deg of %.2f', ref));
+    end
+end
+
+function testAutoProminenceS05RealScan(tc)
+    % S05: previously needed a manually lowered threshold. Conservative
+    % auto returns the STO substrate triplet (film below noise).
+    pk = autoPeaks(tc, ...
+        'TR_S05_PTO_STO(100)_600c_200mT_1000sh_2hz_2theta omega_04092026.txt');
+    verifySTOSubstrate(tc, pk);
+    tc.verifyGreaterThanOrEqual(numel(pk), 3);
+    tc.verifyLessThanOrEqual(numel(pk), 12, 'over-segmented');
+    tc.verifyTrue(all(diff(sort([pk.twoTheta])) >= 0.15), ...
+        'duplicate/split picks closer than 0.15 deg');
+end
+
+function testAutoProminenceS04RealScan(tc)
+    pk = autoPeaks(tc, ...
+        'TR_S04_PTO_STO(100)_750c_200mT_1000sh_3hz_2theta omega_04072026.txt');
+    verifySTOSubstrate(tc, pk);
+    tc.verifyGreaterThanOrEqual(numel(pk), 3);
+    tc.verifyLessThanOrEqual(numel(pk), 12, 'over-segmented');
+end
+
+function testAutoProminenceS10NoOverSegmentation(tc)
+    % S10 reported 66 "peaks" under the old default (DATA_SWEEP #16) — the
+    % Kα-split substrate peak counted several times. Its substrate peaks
+    % are sample-shifted ~0.1 deg off nominal, so assert the
+    % over-segmentation bounds, not the 0.05-deg triplet.
+    pk = autoPeaks(tc, ...
+        'TR_S10_PTO_STO(100)_500c_150mT_20000sh_5hz_2theta omega_04162026.txt');
+    tc.verifyGreaterThanOrEqual(numel(pk), 3);
+    tc.verifyLessThanOrEqual(numel(pk), 15, 'over-segmented');
+    tc.verifyTrue(all(diff(sort([pk.twoTheta])) >= 0.15), ...
+        'duplicate/split picks closer than 0.15 deg');
+    % substrate peaks present near (sample-shifted) nominal positions
+    tt = sort([pk.twoTheta]);
+    tc.verifyTrue(any(abs(tt - 46.5) < 0.2), 'STO 002 region peak missing');
+end
+
+function testAutoProminenceS06NoOverSegmentation(tc)
+    % S06 (PTO on LAO) reported 69 "peaks" under the old default
+    % (DATA_SWEEP #7). LAO substrate — only bounds asserted.
+    pk = autoPeaks(tc, ...
+        'TR_S06_PTO_LAO(100)_600c_200mT_1000sh_2hz_2 theta omega_04082026.txt');
+    tc.verifyGreaterThanOrEqual(numel(pk), 2);
+    tc.verifyLessThanOrEqual(numel(pk), 15, 'over-segmented');
+    tc.verifyTrue(all(diff(sort([pk.twoTheta])) >= 0.15), ...
+        'duplicate/split picks closer than 0.15 deg');
+end
+
+function testAutoProminenceS11FindsFilm(tc)
+    % S11 has genuine strong film peaks (~10x local background) that the
+    % conservative auto path DOES detect: STO triplet + PTO film.
+    pk = autoPeaks(tc, ...
+        'TR_S11_PTO_STO(100)_580c_150mT_20000sh_5hz_2theta omega_04162026.txt');
+    verifySTOSubstrate(tc, pk);
+    tc.verifyGreaterThanOrEqual(numel(pk), 5, 'film peaks missing');
+    tc.verifyLessThanOrEqual(numel(pk), 12, 'over-segmented');
+    tt = sort([pk.twoTheta]);
+    tc.verifyTrue(any(abs(tt - 21.6) < 0.3), 'PTO film ~21.6 deg missing');
+end
+
 % ---------- small helpers ----------
 
 function s = emptyPkStruct()
