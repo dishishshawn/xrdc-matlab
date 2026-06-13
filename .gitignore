@@ -32,6 +32,10 @@ xrdc-matlab/examples/*.pdf
 xrdc-matlab/examples/*.eps
 xrdc-matlab/examples/*.fig
 
-# XRD test data — keep only the zip, ignore loose files
-data/*
-!data/data.zip
+# XRD test data — Tushar's measurement scans are committed in-repo so
+# collaborators can run the gated real-data tests without a separate download.
+# Exclude bulky non-data artifacts: PDFs, archives (the legacy data.zip bundle
+# and the email zip), and reference scripts.
+data/*.pdf
+data/*.zip
+data/*.m

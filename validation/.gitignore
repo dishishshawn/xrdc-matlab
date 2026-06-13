@@ -1,6 +1,6 @@
-# Researcher-supplied scans and reference figures are not repo deliverables.
-# Keep the folder structure and notes tracked; ignore the actual payloads.
-tushar/input/*
+# Researcher-supplied input scans are now committed so collaborators can run
+# the gated validation tests without a separate download. Reference figures
+# (his) and our exported outputs stay out of the repo.
 tushar/reference/*
 tushar/output/*
 
