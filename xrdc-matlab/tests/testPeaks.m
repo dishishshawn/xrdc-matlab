@@ -87,6 +87,46 @@ function testFindPeaksBadScan(tc)
         'xrdc:peaks:badScan');
 end
 
+% ---------- findPeaks auto prominence (log-domain) ----------
+
+function testFindPeaksAutoWideDynamicRange(tc)
+    % Substrate-like 1e6 peak + film-like 1.5e3 peak on a 30-count
+    % background. No single linear threshold separates both from noise;
+    % the log-domain auto criterion must find exactly the two.
+    x = (20:0.01:50).';
+    scan = syntheticScan(x, [22.7, 46.5], [0.05, 0.30], ...
+                              [1e6, 1.5e3], "gauss", 30);
+    pk = xrdc.peaks.findPeaks(scan);
+    tc.verifyLength(pk, 2);
+    tc.verifyEqual(sort([pk.twoTheta]), [22.7, 46.5], 'AbsTol', 0.05);
+end
+
+function testFindPeaksAutoRejectsQuantisationNoise(tc)
+    % Near-zero-count baseline: 0..3-count jitter has ~0.48 decades of
+    % log10 "prominence" but is statistically nothing. The Poisson guard
+    % must reject every candidate.
+    x = (20:0.02:40).';
+    y = double(mod(0:numel(x)-1, 4)).';   % 0 1 2 3 0 1 2 3 ...
+    scan = xrdc.io.emptyScan();
+    scan.twoTheta = x;
+    scan.counts   = y;
+    scan.sourceFormat = "synthetic";
+    pk = xrdc.peaks.findPeaks(scan);
+    tc.verifyEmpty(pk);
+end
+
+function testFindPeaksAutoSuppressesFringeRipple(tc)
+    % ±10% multiplicative ripple (thickness-fringe-like) is ~0.08 decades
+    % in log space — below the 0.3-decade threshold everywhere — while the
+    % main peak (~2 decades) survives. Exactly one peak.
+    x = (25:0.01:35).';
+    scan = syntheticScan(x, 30, 0.3, 1e4, "gauss", 100);
+    scan.counts = scan.counts .* (1 + 0.10 * sin(2*pi*x/0.4));
+    pk = xrdc.peaks.findPeaks(scan);
+    tc.verifyLength(pk, 1);
+    tc.verifyEqual(pk(1).twoTheta, 30, 'AbsTol', 0.06);
+end
+
 % ---------- findPeaksLegacy (slope / slope2) ----------
 
 function testFindPeaksLegacySlopeSingle(tc)

@@ -14,8 +14,16 @@ function peaks = findPeaks(scan, options)
 %             (requires .twoTheta, .counts).
 %
 %   Name/Value options
-%     'MinProminence'  (default: 1.5% of the scan's peak-to-trough range)
+%     'MinProminence'  (default: automatic, log-domain)
 %         Required prominence above neighbouring troughs, in counts.
+%         When omitted, an automatic scale-invariant criterion is used:
+%         a peak must rise >= 0.3 decades above its neighbouring troughs
+%         on the log10(counts) curve AND stand >= 5 Poisson sigma above
+%         the local (~1 degree) median background. One default covers a
+%         1e6-count substrate peak and a 1e3-count film peak in the same
+%         scan. Counts below 1 are clamped before the log, so sub-1-cps
+%         baselines yield no peaks. Pass a numeric value (counts) for the
+%         classic fixed linear threshold.
 %     'MinHeight'      (default: -Inf)
 %         Absolute count threshold (roughly equivalent to SpinEditMinPeak
 %         in the Delphi UI).
@@ -80,13 +88,6 @@ function peaks = findPeaks(scan, options)
         return
     end
 
-    % Default prominence = 1.5% of peak-to-trough range; gives reasonable
-    % sensitivity without catching quantisation noise in low-count scans.
-    minProm = options.MinProminence;
-    if isnan(minProm)
-        minProm = max(1, 0.015 * (max(y) - min(y)));
-    end
-
     % Restrict to requested 2θ window before calling findpeaks so the
     % MinPeakDistance constraint is interpreted in-window.
     inWin = x >= options.TwoThetaRange(1) & x <= options.TwoThetaRange(2);
@@ -108,23 +109,22 @@ function peaks = findPeaks(scan, options)
         minDistSamples = max(1, round(options.MinSeparation / step));
     end
 
-    fpArgs = { ...
-        'MinPeakProminence', minProm, ...
-        'MinPeakHeight',     options.MinHeight, ...
-        'MinPeakDistance',   minDistSamples, ...
-        'WidthReference',    char(options.WidthReference)};
-    if options.MinWidth > 0
-        fpArgs = [fpArgs, {'MinPeakWidth', options.MinWidth / max(step,eps)}];
-    end
-    if isfinite(options.MaxWidth)
-        fpArgs = [fpArgs, {'MaxPeakWidth', options.MaxWidth / max(step,eps)}];
-    end
-
-    % Use Signal Processing Toolbox findpeaks if available; otherwise fallback.
-    if isempty(which('findpeaks'))
-        [pks, locs, widths, proms] = xrdc.peaks.findpeaks_fallback(yw, fpArgs{:});
+    if isnan(options.MinProminence)
+        % Automatic log-domain criterion (see help text above).
+        [pks, locs, widths, proms] = autoDetect(yw, step, minDistSamples, options);
     else
-        [pks, locs, widths, proms] = findpeaks(yw, fpArgs{:});
+        fpArgs = { ...
+            'MinPeakProminence', options.MinProminence, ...
+            'MinPeakHeight',     options.MinHeight, ...
+            'MinPeakDistance',   minDistSamples, ...
+            'WidthReference',    char(options.WidthReference)};
+        if options.MinWidth > 0
+            fpArgs = [fpArgs, {'MinPeakWidth', options.MinWidth / max(step,eps)}];
+        end
+        if isfinite(options.MaxWidth)
+            fpArgs = [fpArgs, {'MaxPeakWidth', options.MaxWidth / max(step,eps)}];
+        end
+        [pks, locs, widths, proms] = callFindpeaks(yw, fpArgs{:});
     end
 
     % findpeaks returns `locs` as indices into yw (the cropped vector).
@@ -154,6 +154,67 @@ function peaks = findPeaks(scan, options)
     % for ascending x is already sorted; guard against descending scans).
     [~, order] = sort([peaks.twoTheta]);
     peaks = peaks(order);
+end
+
+% -------------------------------------------------------------------------
+
+function [pks, locs, widths, proms] = autoDetect(yw, step, minDistSamples, options)
+%AUTODETECT  Log-domain auto prominence (MinProminence omitted).
+%   A peak must (a) rise PROM_DECADES above its neighbouring troughs on
+%   the log10 intensity curve — scale-invariant across the ~6-decade
+%   dynamic range of a θ-2θ scan — and (b) clear a Poisson significance
+%   test against the local median background, which rejects the large
+%   fake log-prominence of quantisation jitter on near-zero-count
+%   baselines. Reported metrics stay linear-domain: log10 (clamped at 1)
+%   is monotone non-decreasing, so every accepted log-domain maximum is a
+%   linear local maximum at the same index.
+    PROM_DECADES  = 0.3;   % ≈2x above the surrounding troughs
+    NOISE_SIGMAS  = 5;     % Poisson significance vs local background
+    BG_WINDOW_DEG = 1.0;   % local-background median window, in 2θ
+
+    pks = []; locs = []; widths = []; proms = [];
+
+    yLog = log10(max(yw, 1));
+    [~, locsLog] = callFindpeaks(yLog, ...
+        'MinPeakProminence', PROM_DECADES, ...
+        'MinPeakDistance',   minDistSamples);
+    if isempty(locsLog), return, end
+
+    if step > 0 && isfinite(step)
+        bgWin = max(3, round(BG_WINDOW_DEG / step));
+    else
+        bgWin = min(numel(yw), 51);
+    end
+    bg  = movmedian(yw, bgWin);
+    sig = (yw(locsLog) - bg(locsLog)) >= NOISE_SIGMAS * sqrt(max(bg(locsLog), 1));
+    locsKeep = locsLog(sig);
+    if isempty(locsKeep), return, end
+
+    % Linear metrics: enumerate all linear local maxima with widths and
+    % prominences, then keep the accepted subset by index.
+    [pksAll, locsAll, widthsAll, promsAll] = callFindpeaks(yw, ...
+        'MinPeakHeight',  options.MinHeight, ...
+        'WidthReference', char(options.WidthReference));
+    [locs, ia] = intersect(locsAll, locsKeep);
+    pks = pksAll(ia); widths = widthsAll(ia); proms = promsAll(ia);
+
+    keep = true(size(locs));
+    if options.MinWidth > 0
+        keep = keep & widths >= options.MinWidth / max(step, eps);
+    end
+    if isfinite(options.MaxWidth)
+        keep = keep & widths <= options.MaxWidth / max(step, eps);
+    end
+    pks = pks(keep); locs = locs(keep); widths = widths(keep); proms = proms(keep);
+end
+
+function [pks, locs, widths, proms] = callFindpeaks(y, varargin)
+%CALLFINDPEAKS  Signal Processing Toolbox findpeaks, or the fallback.
+    if isempty(which('findpeaks'))
+        [pks, locs, widths, proms] = xrdc.peaks.findpeaks_fallback(y, varargin{:});
+    else
+        [pks, locs, widths, proms] = findpeaks(y, varargin{:});
+    end
 end
 
 % -------------------------------------------------------------------------
