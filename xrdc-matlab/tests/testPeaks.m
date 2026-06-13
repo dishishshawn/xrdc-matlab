@@ -127,6 +127,74 @@ function testFindPeaksAutoSuppressesFringeRipple(tc)
     tc.verifyEqual(pk(1).twoTheta, 30, 'AbsTol', 0.06);
 end
 
+function testFindPeaksAutoRejectsQuantisedCpsBlips(tc)
+    % Regression for the cps-units / mostly-zero-baseline bug.
+    %
+    % Real Rigaku θ-2θ exports are counts-per-second: one detected photon
+    % is ~5 cps, not 1 count, and ~70% of the baseline is exactly 0. The
+    % old guard assumed σ = sqrt(counts) on the raw cps and floored σ at 1
+    % count, so a single-photon (5 cps) baseline blip cleared a flat 5σ
+    % threshold and was reported as a peak — ~647 of them on the S05 scan.
+    %
+    % Here we emulate that: counts are mostly 0 with isolated single-quantum
+    % (q = 5) blips, PLUS two genuine peaks — a ~1e6 substrate-like and a
+    % ~1e3 film-like Gaussian. Quantise to multiples of q so the data looks
+    % like real cps (the quantum estimator must recover q ≈ 5). Auto mode
+    % must return exactly the two real peaks and none of the blips.
+    q = 5;
+    x = (20:0.01:50).';
+    n = numel(x);
+    y = 1e6 * exp(-(x - 22.7).^2 / (2 * 0.02^2)) ...   % substrate-like
+      + 1e3 * exp(-(x - 46.5).^2 / (2 * 0.10^2));       % film-like
+    rng(12345);
+    nBlip = 150;
+    blipIdx = randperm(n, nBlip);
+    y(blipIdx) = y(blipIdx) + q;                          % single-quantum blips
+    y = q * round(y / q);                                 % quantise like cps
+    scan = xrdc.io.emptyScan();
+    scan.twoTheta = x;
+    scan.counts   = y;
+    scan.sourceFormat = "synthetic";
+
+    pk = xrdc.peaks.findPeaks(scan);
+    tc.verifyLength(pk, 2);
+    tc.verifyEqual(sort([pk.twoTheta]), [22.7, 46.5], 'AbsTol', 0.05);
+end
+
+function testFindPeaksAutoMarginalLogProminencePeak(tc)
+    % Constant-pin PROM_DECADES: a peak only ~0.4 decades above its
+    % neighbouring troughs (just clear of the 0.3-decade shape test) must
+    % still be detected. If PROM_DECADES ever drifts up past ~0.4 this fails.
+    % Background 1000, peak amplitude 1512 -> top ~2512 ≈ 0.4 decades above
+    % the 1000 troughs (log10(2512/1000) ≈ 0.40). Strong Poisson
+    % significance keeps the noise guard from being the limiting factor.
+    x = (20:0.01:40).';
+    scan = syntheticScan(x, 30, 0.4, 1512, "gauss", 1000);
+    pk = xrdc.peaks.findPeaks(scan);
+    tc.verifyGreaterThanOrEqual(numel(pk), 1);
+    [~, ord] = sort([pk.counts], 'descend');
+    tc.verifyEqual(pk(ord(1)).twoTheta, 30, 'AbsTol', 0.05);
+end
+
+function testFindPeaksAutoWeakPeakAboveModestBackground(tc)
+    % Constant-pin NOISE_SIGMAS: a weak-but-real peak must survive the
+    % Poisson significance guard. Background 50, narrow (FWHM 0.2°) peak of
+    % amplitude 75 -> top 125. The log shape test is comfortably cleared
+    % (log10(125/50) ≈ 0.40 decades, well above 0.3), so the binding
+    % constraint is the noise guard alone. The photon-excess significance
+    % here is z = (125 - 50)/sqrt(125 + 50 + 1) ≈ 5.6 (q = 1 on this
+    % continuous synthetic data), just above the 5σ guard. If NOISE_SIGMAS
+    % ever drifts up past ~5.5 this genuine peak is rejected and the test
+    % fails — pinning the guard from becoming too strict (well under the
+    % review's ≤ ~8 bound).
+    x = (20:0.01:40).';
+    scan = syntheticScan(x, 30, 0.2, 75, "gauss", 50);
+    pk = xrdc.peaks.findPeaks(scan);
+    tc.verifyGreaterThanOrEqual(numel(pk), 1);
+    [~, ord] = sort([pk.counts], 'descend');
+    tc.verifyEqual(pk(ord(1)).twoTheta, 30, 'AbsTol', 0.05);
+end
+
 % ---------- findPeaksLegacy (slope / slope2) ----------
 
 function testFindPeaksLegacySlopeSingle(tc)

@@ -18,12 +18,16 @@ function peaks = findPeaks(scan, options)
 %         Required prominence above neighbouring troughs, in counts.
 %         When omitted, an automatic scale-invariant criterion is used:
 %         a peak must rise >= 0.3 decades above its neighbouring troughs
-%         on the log10(counts) curve AND stand >= 5 Poisson sigma above
-%         the local (~1 degree) median background. One default covers a
-%         1e6-count substrate peak and a 1e3-count film peak in the same
-%         scan. Counts below 1 are clamped before the log, so sub-1-cps
-%         baselines yield no peaks. Pass a numeric value (counts) for the
-%         classic fixed linear threshold.
+%         on the log10(counts) curve AND clear a Poisson significance test
+%         (>= 5 sigma) against the local (~1 degree) median background. The
+%         significance test is computed in photon units (intensity / count
+%         quantum), so it is correct for both raw photon counts and Rigaku
+%         counts-per-second exports, where one photon is ~5-15 cps and the
+%         baseline is mostly exact zeros — single-photon cps blips are
+%         rejected as ~1 sigma rather than mistaken for peaks. One default
+%         covers a 1e6-count substrate peak and a 1e3-count film peak in
+%         the same scan. Pass a numeric value (counts) for the classic
+%         fixed linear threshold.
 %     'MinHeight'      (default: -Inf)
 %         Absolute count threshold (roughly equivalent to SpinEditMinPeak
 %         in the Delphi UI).
@@ -91,7 +95,8 @@ function peaks = findPeaks(scan, options)
     % Restrict to requested 2θ window before calling findpeaks so the
     % MinPeakDistance constraint is interpreted in-window.
     inWin = x >= options.TwoThetaRange(1) & x <= options.TwoThetaRange(2);
-    if ~any(inWin)
+    if nnz(inWin) < 3
+        % findpeaks needs >= 3 samples; a too-narrow window means no peaks.
         peaks = emptyPeakArray();
         return
     end
@@ -163,13 +168,14 @@ function [pks, locs, widths, proms] = autoDetect(yw, step, minDistSamples, optio
 %   A peak must (a) rise PROM_DECADES above its neighbouring troughs on
 %   the log10 intensity curve — scale-invariant across the ~6-decade
 %   dynamic range of a θ-2θ scan — and (b) clear a Poisson significance
-%   test against the local median background, which rejects the large
-%   fake log-prominence of quantisation jitter on near-zero-count
-%   baselines. Reported metrics stay linear-domain: log10 (clamped at 1)
-%   is monotone non-decreasing, so every accepted log-domain maximum is a
-%   linear local maximum at the same index.
-    PROM_DECADES  = 0.3;   % ≈2x above the surrounding troughs
-    NOISE_SIGMAS  = 5;     % Poisson significance vs local background
+%   test against the local median background. The significance test is
+%   computed in *photon* units, not raw intensity units, so it is correct
+%   regardless of whether the data are raw counts or counts-per-second
+%   (cps). See estimateQuantum below. Reported metrics stay linear-domain:
+%   log10 (clamped at 1) is monotone non-decreasing, so every accepted
+%   log-domain maximum is a linear local maximum at the same index.
+    PROM_DECADES  = 0.3;   % ≈2x above the surrounding troughs (log shape test)
+    NOISE_SIGMAS  = 5;     % min Poisson significance (z) of the photon excess
     BG_WINDOW_DEG = 1.0;   % local-background median window, in 2θ
 
     pks = []; locs = []; widths = []; proms = [];
@@ -186,7 +192,22 @@ function [pks, locs, widths, proms] = autoDetect(yw, step, minDistSamples, optio
         bgWin = min(numel(yw), 51);
     end
     bg  = movmedian(yw, bgWin);
-    sig = (yw(locsLog) - bg(locsLog)) >= NOISE_SIGMAS * sqrt(max(bg(locsLog), 1));
+
+    % Unit-aware Poisson guard. Estimate the count quantum q (intensity per
+    % detected photon: 1 for raw counts, ~5–15 for cps), convert peak and
+    % background to photon counts N = y/q, Nbg = bg/q, and require the
+    % excess to be significant as a difference of two Poisson variables:
+    %   z = (N - Nbg) / sqrt(N + Nbg + 1)  >=  NOISE_SIGMAS .
+    % Using N (the peak's own counts) in the variance — rather than only the
+    % background — is what rejects single-photon cps blips on a near-zero
+    % baseline: one photon is z ≈ 1, far below threshold, whereas the old
+    % sqrt(max(bg,1)) guard floored sigma at 1 *count* and let a 5–15 cps
+    % blip clear a flat 5σ line. The +1 keeps z finite at zero background.
+    q   = estimateQuantum(yw);
+    N   = yw(locsLog) / q;
+    Nbg = bg(locsLog) / q;
+    z   = (N - Nbg) ./ sqrt(N + Nbg + 1);
+    sig = z >= NOISE_SIGMAS;
     locsKeep = locsLog(sig);
     if isempty(locsKeep), return, end
 
@@ -206,6 +227,42 @@ function [pks, locs, widths, proms] = autoDetect(yw, step, minDistSamples, optio
         keep = keep & widths <= options.MaxWidth / max(step, eps);
     end
     pks = pks(keep); locs = locs(keep); widths = widths(keep); proms = proms(keep);
+end
+
+function q = estimateQuantum(y)
+%ESTIMATEQUANTUM  Intensity per detected photon (the count quantum).
+%   Raw photon-count data has quantum 1. Rigaku cps exports divide raw
+%   counts by the per-point integration time, so one photon shows up as a
+%   fixed small intensity (~4.5–15 cps here) and the baseline is dominated
+%   by exact zeros. The Poisson significance guard needs photon counts
+%   N = y/q to be unit-correct, so estimate q here.
+%
+%   Estimator: when a substantial fraction of samples are *exactly* zero
+%   (the signature of quantised cps data — continuous/noisy data almost
+%   never lands on exact 0), the single-photon level is the small recurring
+%   floor among the positive values; the 1st percentile of positive values
+%   is a robust, outlier-resistant estimate of it. Otherwise (continuous or
+%   raw-count data) fall back to q = 1, which reduces the guard to the
+%   ordinary raw-count Poisson test. q is floored at 1 so the guard can
+%   never become *more* permissive than raw-count Poisson.
+%
+%   The percentile is computed by sorting (base MATLAB) rather than
+%   prctile, so this never pulls in the Statistics Toolbox.
+    y   = y(:);
+    pos = sort(y(y > 0));
+    if numel(pos) < 20
+        q = 1;
+        return
+    end
+    if mean(y == 0) >= 0.05
+        % 1st percentile by nearest-rank on the sorted positives.
+        qc = pos(max(1, ceil(0.01 * numel(pos))));
+        if qc > 1
+            q = qc;
+            return
+        end
+    end
+    q = 1;
 end
 
 function [pks, locs, widths, proms] = callFindpeaks(y, varargin)
