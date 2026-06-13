@@ -1,0 +1,16 @@
+{
+  "_comment": "Atomic scattering factors f1,f2 at Cu Ka (8047.8 eV) from Henke et al., At. Data Nucl. Data Tables 54 (1993) / CXRO. mass in g/mol. Used by xrdc.xrr.opticalConstants. VERIFY f1/f2 against henke.lbl.gov before trusting absolute delta/beta.",
+  "elements": {
+    "O":  { "f1": 8.052,  "f2": 0.032, "mass": 15.999 },
+    "Si": { "f1": 14.30,  "f2": 0.331, "mass": 28.085 },
+    "Al": { "f1": 13.04,  "f2": 0.212, "mass": 26.982 },
+    "Ti": { "f1": 19.46,  "f2": 2.215, "mass": 47.867 },
+    "Sr": { "f1": 36.21,  "f2": 3.829, "mass": 87.62  },
+    "Zr": { "f1": 39.24,  "f2": 0.560, "mass": 91.224 },
+    "Ru": { "f1": 43.16,  "f2": 0.838, "mass": 101.07 },
+    "La": { "f1": 53.30,  "f2": 9.038, "mass": 138.905 },
+    "W":  { "f1": 70.52,  "f2": 6.555, "mass": 183.84 },
+    "Pb": { "f1": 80.30,  "f2": 8.910, "mass": 207.2  },
+    "Pt": { "f1": 75.10,  "f2": 8.430, "mass": 195.084 }
+  }
+}

@@ -47,6 +47,43 @@ function scan = syntheticXrr(tNm, lambda, twoThetaC, twoThetaEnd)
 end
 
 % =========================================================================
+% opticalConstants
+% =========================================================================
+
+function testOpticalConstantsVacuumLikeSmall(tc)
+    % Low-Z, low-density gives small delta/beta; both strictly positive.
+    [d, b] = xrdc.xrr.opticalConstants("SiO2", 2.2, 1.5406);
+    tc.verifyGreaterThan(d, 0);
+    tc.verifyGreaterThan(b, 0);
+    tc.verifyLessThan(d, 1e-4);
+end
+
+function testOpticalConstantsStoCriticalAngle(tc)
+    % SrTiO3 at bulk density: the grazing critical angle thetaC = sqrt(2*delta)
+    % is ~0.27-0.30 deg (2*thetaC ~ 0.55 deg, matching the S-series XRR edge).
+    [delta, ~] = xrdc.xrr.opticalConstants("SrTiO3", 5.12, 1.5406);
+    thetaCdeg = sqrt(2*delta) * 180/pi;
+    tc.verifyGreaterThan(thetaCdeg, 0.24);
+    tc.verifyLessThan(thetaCdeg, 0.32);
+end
+
+function testOpticalConstantsByMaterialName(tc)
+    [d1, b1] = xrdc.xrr.opticalConstants("SrTiO3", 5.12, 1.5406);
+    [d2, b2] = xrdc.xrr.opticalConstants("SrTiO3", 5.12, 1.5406);
+    tc.verifyEqual(d1, d2); tc.verifyEqual(b1, b2);
+end
+
+function testOpticalConstantsRejectsNonCuKa(tc)
+    tc.verifyError(@() xrdc.xrr.opticalConstants("SrTiO3", 5.12, 0.7093), ...
+        'xrdc:xrr:unsupportedEnergy');
+end
+
+function testOpticalConstantsUnknownElement(tc)
+    tc.verifyError(@() xrdc.xrr.opticalConstants("XyO2", 5, 1.5406), ...
+        'xrdc:xrr:unknownElement');
+end
+
+% =========================================================================
 % findCriticalEdge
 % =========================================================================
 
