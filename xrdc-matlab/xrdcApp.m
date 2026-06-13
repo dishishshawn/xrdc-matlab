@@ -309,7 +309,7 @@ function buildAnalysisPanel(fig)
             row = addCheck(g, row, 'Overlay 2nd RC (film/sub)', overlayOn, ...
                                                       @(src) onRcOverlayToggle(fig, src));
         case 'twothetaomega'
-            row = addEdit (g, row, 'Min prom (%)',   '5',   @(v) onParamChange(fig, 'promPct',   v));
+            row = addEdit (g, row, 'Min prom (%)',   'auto', @(v) onParamChange(fig, 'promPct',  v));
             subs = identifiableSubstrates();
             row = addDrop (g, row, 'Substrate', subs, subs{1}, ...
                                                       @(v) onSubstrateChange(fig, v));
@@ -636,13 +636,27 @@ function [label, color] = rcRoleStyle(name, ordinal)
     end
 end
 
+function pk = thetaPeaks(st)
+%THETAPEAKS  Shared peak set for θ-2θ analyses (plot + Identify Material).
+%   'Min prom (%)' numeric → manual threshold as % of max counts (the
+%   classic behaviour). 'auto' (the default) or anything non-numeric →
+%   findPeaks' log-domain auto criterion, with MinSeparation 0.2° so the
+%   Kα1/Kα2 substrate split reports as one peak.
+    raw = getStr(st.params, 'promPct', 'auto');
+    pct = str2double(raw);
+    if isfinite(pct)
+        pk = xrdc.peaks.findPeaks(st.scan, ...
+            'MinProminence', max(st.scan.counts) * pct / 100);
+    else
+        pk = xrdc.peaks.findPeaks(st.scan, 'MinSeparation', 0.2);
+    end
+end
+
 function runThetaTwoTheta(fig)
     st   = fig.UserData;
     scan = st.scan; ax = st.ax;
 
-    promPct = getNum(st.params, 'promPct', 5);
-    pk = xrdc.peaks.findPeaks(scan, ...
-        'MinProminence', max(scan.counts) * promPct / 100);
+    pk = thetaPeaks(st);
 
     semilogy(ax, scan.twoTheta, max(scan.counts, 1), '-', 'Color', [0.1 0.4 0.8], 'LineWidth', 1.5);
     hold(ax, 'on');
@@ -665,11 +679,10 @@ function onIdentifyMaterial(fig)
 %ONIDENTIFYMATERIAL  Run material ID on the current theta-2theta peaks.
     st = fig.UserData;
     if isempty(st.scan), return, end
-    promPct = getNum(st.params, 'promPct', 5);
-    pk = xrdc.peaks.findPeaks(st.scan, ...
-        'MinProminence', max(st.scan.counts) * promPct / 100);
+    pk = thetaPeaks(st);
     if isempty(pk)
-        uialert(fig, 'No peaks detected - lower "Min prom (%)" and retry.', ...
+        uialert(fig, ['No peaks detected - set "Min prom (%)" to auto, ' ...
+            'or lower the percentage, and retry.'], ...
             'Identify material', 'Icon', 'warning');
         return
     end
