@@ -195,6 +195,39 @@ function testFindPeaksAutoWeakPeakAboveModestBackground(tc)
     tc.verifyEqual(pk(ord(1)).twoTheta, 30, 'AbsTol', 0.05);
 end
 
+function testFindPeaksExplicitProminenceUnchanged(tc)
+    % Explicit MinProminence keeps the classic fixed linear path: a
+    % 100-count bump fails a 300-count threshold even though the auto
+    % criterion would accept it.
+    x = (20:0.02:40).';
+    scan = syntheticScan(x, [25, 35], [0.3, 0.3], [100, 5000], ...
+                              "lorentz", 50);
+    pk = xrdc.peaks.findPeaks(scan, 'MinProminence', 300);
+    tc.verifyLength(pk, 1);
+    tc.verifyEqual(pk(1).twoTheta, 35, 'AbsTol', 0.05);
+end
+
+function testFindPeaksAutoRespectsMinHeight(tc)
+    % MinHeight applies to the linear pass in auto mode.
+    x = (20:0.02:40).';
+    scan = syntheticScan(x, [25, 35], [0.3, 0.3], [500, 5000], ...
+                              "lorentz", 50);
+    pk = xrdc.peaks.findPeaks(scan, 'MinHeight', 2000);
+    tc.verifyLength(pk, 1);
+    tc.verifyEqual(pk(1).twoTheta, 35, 'AbsTol', 0.05);
+end
+
+function testFindPeaksAutoRespectsMinSeparation(tc)
+    % Kα-split-like pair 0.12° apart merges to the taller member when
+    % MinSeparation exceeds the split (auto mode).
+    x = (40:0.005:50).';
+    scan = syntheticScan(x, [46.50, 46.62], [0.05, 0.05], ...
+                              [1e6, 5e5], "gauss", 100);
+    pk = xrdc.peaks.findPeaks(scan, 'MinSeparation', 0.2);
+    tc.verifyLength(pk, 1);
+    tc.verifyEqual(pk(1).twoTheta, 46.50, 'AbsTol', 0.02);
+end
+
 % ---------- findPeaksLegacy (slope / slope2) ----------
 
 function testFindPeaksLegacySlopeSingle(tc)
