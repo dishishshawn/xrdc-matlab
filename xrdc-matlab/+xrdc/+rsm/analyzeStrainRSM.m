@@ -20,8 +20,11 @@ function R = analyzeStrainRSM(rsm, options)
 %   Reflection : 1x3 [h k l]; an asymmetric reflection (l~=0 and h^2+k^2>0).
 %   NoiseFactor : forwarded to xrdc.rsm.findRsmPeaks.
 %
-%   Output R: see field assignments below. Caveats (pseudocubic a0; strain/
-%   composition real-data-unvalidated this iteration) in SCIENTIFIC_ASSUMPTIONS.
+%   Output R: see field assignments below. R.elasticModel is "nu" or "c13c33";
+%   R.nu is the Poisson ratio under the "nu" model and NaN under "c13c33"
+%   (no single nu exists there -- the strain still uses the correct factor).
+%   Caveats (pseudocubic a0; strain/composition real-data-unvalidated this
+%   iteration) in SCIENTIFIC_ASSUMPTIONS.
 %   Errors: xrdc:rsm:badReflection, xrdc:lattice:unknownMaterial.
 
     arguments
@@ -82,7 +85,8 @@ function R = analyzeStrainRSM(rsm, options)
     % --- substrate ---
     subAMeas = invPar(pk.substrate.kPar);
     subCMeas = invPerp(pk.substrate.kPerp);
-    % prediction from declared lattice (cubic: c=a)
+    % prediction from declared lattice (uses tabulated a and c; for a cubic
+    % substrate c=a, for a tetragonal substrate e.g. TiO2 they differ)
     kParPred  = sqHK / subMat.a;
     kPerpPred = hkl(3) / subMat.c;
     offPct = 100 * hypot(pk.substrate.kPar - kParPred, pk.substrate.kPerp - kPerpPred) ...
