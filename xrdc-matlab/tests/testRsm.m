@@ -356,6 +356,44 @@ function testRsmLoadRealKTaO3Data(testCase)
     end
 end
 
+% =====================================================================
+% biaxialStrain — FR-7.x (RSM strain decomposition)
+% =====================================================================
+
+function testBiaxialStrainZeroWhenCubic(tc)
+    % a_par == a_perp -> unstrained: a0 = a_par, both strains zero.
+    [a0, ep, ez] = xrdc.rsm.biaxialStrain(3.905, 3.905, 0.857);
+    tc.verifyEqual(a0, 3.905, 'AbsTol', 1e-12);
+    tc.verifyEqual(ep, 0, 'AbsTol', 1e-12);
+    tc.verifyEqual(ez, 0, 'AbsTol', 1e-12);
+end
+
+function testBiaxialStrainCompressivePhysicalSign(tc)
+    % In-plane compression: a_par < a_perp (Poisson pushes c out).
+    % Correct labels => eps_par < 0 (compressed) AND eps_perp > 0 (expanded).
+    % A label swap flips BOTH signs, so this fails on the swap regardless of
+    % where any expected numbers came from.
+    f = 0.857;                         % ~ nu=0.30
+    [~, epsPar, epsPerp] = xrdc.rsm.biaxialStrain(3.90, 4.05, f);
+    tc.verifyLessThan(epsPar, 0, 'in-plane compression must give eps_par < 0');
+    tc.verifyGreaterThan(epsPerp, 0, 'Poisson expansion must give eps_perp > 0');
+end
+
+function testBiaxialStrainReconstructionAndInvariant(tc)
+    % Reconstruction identity: a = a0*(1+eps). Fails immediately if labels
+    % are swapped. Invariant: eps_perp/eps_par = -f, independent of magnitude.
+    f = 2*0.232/(1-0.232);
+    aPar = 3.88; aPerp = 4.02;
+    [a0, epsPar, epsPerp] = xrdc.rsm.biaxialStrain(aPar, aPerp, f);
+    tc.verifyEqual(a0*(1+epsPar),  aPar,  'AbsTol', 1e-12, 'reconstruct a_par');
+    tc.verifyEqual(a0*(1+epsPerp), aPerp, 'AbsTol', 1e-12, 'reconstruct a_perp');
+    tc.verifyEqual(epsPerp/epsPar, -f, 'AbsTol', 1e-12, 'eps_perp/eps_par = -f');
+end
+
+function testBiaxialStrainRejectsNonPositive(tc)
+    tc.verifyError(@() xrdc.rsm.biaxialStrain(0, 4.0, 0.8), 'MATLAB:validators:mustBePositive');
+end
+
 function testRsmParityAgainstBaronePlotScript(testCase)
     % Parity check: our toReciprocalSpace must match the Qx/Qz formulas
     % in Matthew Barone's RSMPlot(1).m on the same real data.
