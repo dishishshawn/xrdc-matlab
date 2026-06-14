@@ -430,3 +430,50 @@ function testRsmParityAgainstBaronePlotScript(testCase)
     testCase.verifyLessThan(max(abs(kZ - QzRef)), tol, ...
         'k_perp does not match Barone RSMPlot(1).m formula (simplified branch).');
 end
+
+% =====================================================================
+% findRsmPeaks — FR-6.x 2D auto-finder
+% =====================================================================
+
+function [kp, kz, I] = twoGaussianCloud(cSub, cFilm, ampFilm)
+%Helper: dense grid cloud, sharp substrate (sigma 0.0025) + broader film
+%   (sigma 0.004), at cSub, cFilm (=[kPar kPerp]). Substrate brightest.
+    [KP, KZ] = meshgrid(linspace(0.20, 0.40, 200), linspace(0.60, 0.85, 220));
+    wS = 0.0025; wF = 0.004;
+    I = 1 ...
+      + 1000   *exp(-((KP-cSub(1)).^2  + (KZ-cSub(2)).^2 )/(2*wS^2)) ...
+      + ampFilm*exp(-((KP-cFilm(1)).^2 + (KZ-cFilm(2)).^2)/(2*wF^2));
+    kp = KP(:); kz = KZ(:); I = I(:);
+end
+
+function testFindRsmPeaksTwoWellSeparated(tc)
+    cSub = [0.256 0.768]; cFilm = [0.244 0.732];   % sep ~0.038
+    [kp, kz, I] = twoGaussianCloud(cSub, cFilm, 300);
+    p = xrdc.rsm.findRsmPeaks(kp, kz, I);
+    tc.verifyTrue(p.substrate.found);
+    tc.verifyTrue(p.film.found);
+    tc.verifyEqual([p.substrate.kPar p.substrate.kPerp], cSub, 'AbsTol', 5e-3);
+    tc.verifyEqual([p.film.kPar p.film.kPerp], cFilm, 'AbsTol', 5e-3);
+    tc.verifyFalse(any(p.flags == "filmNearSubstrate"));
+end
+
+function testFindRsmPeaksNearDegenerateFlags(tc)
+    % Film close to substrate (sep ~0.016 < NearThreshold 0.03) -> still
+    % resolved by the grid maxima, but flagged.
+    cSub = [0.256 0.768]; cFilm = [0.256 0.752];
+    [kp, kz, I] = twoGaussianCloud(cSub, cFilm, 400);
+    p = xrdc.rsm.findRsmPeaks(kp, kz, I);
+    tc.verifyTrue(p.film.found);
+    tc.verifyEqual([p.film.kPar p.film.kPerp], cFilm, 'AbsTol', 5e-3);
+    tc.verifyTrue(any(p.flags == "filmNearSubstrate"));
+end
+
+function testFindRsmPeaksSubstrateOnly(tc)
+    % Single peak -> film not found, flagged, and NOT a copy of substrate.
+    cSub = [0.256 0.768];
+    [kp, kz, I] = twoGaussianCloud(cSub, [0.30 0.70], 0);   % film amp 0
+    p = xrdc.rsm.findRsmPeaks(kp, kz, I);
+    tc.verifyTrue(p.substrate.found);
+    tc.verifyFalse(p.film.found);
+    tc.verifyTrue(any(p.flags == "filmNotBrighter"));
+end
