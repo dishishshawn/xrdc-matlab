@@ -95,6 +95,19 @@
       "refs": "pseudocubic WO3 a ~ 3.84 A (monoclinic WO3 treated pseudocubically); nu ~ 0.27 nominal",
       "formula": "WO3",
       "densityBulk": 7.16
+    },
+    {
+      "name": "PtO2",
+      "aliases": ["platinum dioxide", "beta-PtO2"],
+      "system": "tetragonal",
+      "a": 4.485,
+      "c": 3.137,
+      "role": "film",
+      "elastic": { "nu": 0.30 },
+      "composition": null,
+      "refs": "APPROXIMATE: beta-PtO2 (CaCl2-type orthorhombic Pnnm a=4.485 b=4.533 c=3.137 A) treated pseudo-tetragonally (a~=b); nu=0.30 placeholder. Used only so Film=PtO2 runs end-to-end; substrate-side RSM validation does not depend on these values.",
+      "formula": "PtO2",
+      "densityBulk": 11.8
     }
   ]
 }

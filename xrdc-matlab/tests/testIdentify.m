@@ -462,3 +462,14 @@ function testIdentifyS31KnownMisrankPtoFilm(tc)
     tc.verifyEqual(string(s.bestMatch), "PZT", ...
         'S31 ranking changed - PTO-vs-PZT fix may have landed; see header note');
 end
+
+function testLoadMaterialsHasPtO2(tc)
+    e = xrdc.lattice.loadMaterials("PtO2");
+    tc.verifyEqual(string(e.name), "PtO2");
+    tc.verifyEqual(string(e.system), "tetragonal");
+    tc.verifyGreaterThan(e.a, 4.0);   % ~4.485
+    tc.verifyGreaterThan(e.c, 3.0);   % ~3.137
+    tc.verifyTrue(isfield(e.elastic, 'nu') && ~isempty(e.elastic.nu));
+    % approximate values must be advertised in refs
+    tc.verifyTrue(contains(lower(string(e.refs)), "approximate"));
+end
