@@ -56,14 +56,25 @@ Validated on the real TiO₂ 112 substrate peak to 4 significant figures.
 
 ## Physics
 
-**Biaxial strain decomposition** (standard cubic-reference relations; research
-report §AREA 1, Birkholz Ch. 7, arXiv:1305.0714):
+**Biaxial strain decomposition** (standard cubic-reference relations, derived
+from Hooke's law with σ_zz = 0 at the free surface; research report §AREA 1,
+Birkholz Ch. 7, arXiv:1305.0714):
 
 ```
-a₀  = ((1−ν)·a⊥ + 2ν·a∥) / (1+ν)
-ε⊥  =  (1−ν)/(1+ν) · (a∥ − a⊥) / a₀
-ε∥  = −2ν/(1+ν)   · (a∥ − a⊥) / a₀
+a₀  = ((1−ν)·a⊥ + 2ν·a∥) / (1+ν)   = (a⊥ + f·a∥) / (1+f)
+ε∥  = +(1−ν)/(1+ν) · (a∥ − a⊥) / a₀     ← in-plane
+ε⊥  = −2ν/(1+ν)   · (a∥ − a⊥) / a₀     ← out-of-plane
 ```
+
+**Sign/label discipline (this block has been corrected once — do not "tidy"
+it).** Physical check: a film under in-plane *compression* has a∥ < a₀ and, by
+Poisson, a⊥ > a₀, so (a∥ − a⊥) < 0 → ε∥ < 0 (compressed in-plane ✓),
+ε⊥ > 0 (expanded out-of-plane ✓). The invariant the test anchors to is
+`ε⊥/ε∥ = −2ν/(1−ν) = −f` — independent of the (a∥−a⊥) magnitude, so it
+survives any common-source numeric error. `a₀` is computed *independently* of
+ε (so relaxation and PZT composition, which depend only on a₀, are correct
+regardless of the ε labels — but the reported ε values go straight into a
+methods section, so the labels must be right).
 
 Implemented in terms of the **elastic factor** `f` rather than ν directly, so
 both elastic models in `materials.json` work:
@@ -84,7 +95,8 @@ where `a∥_substrate` is the **measured** substrate in-plane parameter from the
 same RSM (`√(h²+k²)/kPar` of the substrate peak), not a tabulated bulk value —
 the substrate is the unstrained internal reference, so this also absorbs any
 shared zero-offset. `pseudomorphic` is true when `relaxation` is within
-tolerance of 0.
+tolerance of 0. Note `a₀` (hence relaxation) depends on ν, so an inaccurate ν
+biases relaxation *and* both strain components — see the ν-sensitivity caveat.
 
 **Composition (PZT only)** — invert the tetragonal-side Vegard anchor table
 `composition.{x,a}` in `materials.json` to map the *relaxed* `a₀ → x`. Uses
@@ -108,9 +120,20 @@ phase field and breaks at the MPB.
   `peaks = findRsmPeaks(kPar, kPerp, intensity, Name=Value)`. Returns
   `peaks.substrate{kPar,kPerp,intensity,found}` (global max + intensity-
   weighted centroid in a small window) and `peaks.film{...,found}` (strongest
-  local max outside a mask of radius `MaskRadius` around the substrate, above
-  `NoiseFactor`×background; `found=false` + no error if none). Options:
-  `MaskRadius` (default in Å⁻¹), `NoiseFactor`, `CentroidWindow`.
+  local max outside a mask around the substrate, above `NoiseFactor`×
+  background; `found=false` + no error if none). Options: `MaskRadius`,
+  `NoiseFactor`, `CentroidWindow`.
+  **Hardening (the auto-finder is weakest exactly where the science is
+  hardest).** The feature exists to resolve the *near-degenerate* case — film
+  peak close to the substrate — which is precisely when a fixed mask can
+  swallow the film peak. Two guards: (1) `MaskRadius` defaults relative to the
+  substrate–film separation scale (data-driven), not a fixed Å⁻¹ constant;
+  (2) when the detected film peak lies within `1.5 × MaskRadius` of the
+  substrate, set a `filmNearSubstrate` flag so the caller knows the hard case
+  is in play and the result needs a human glance. Also flag `filmNotBrighter`
+  if no clear secondary maximum is found above background — substrate-as-
+  brightest fails for a thick/strongly-diffracting film, and silently
+  returning the substrate twice would be the worst outcome.
 
 - **`+xrdc/+rsm/analyzeStrainRSM.m`** — one-call entry point.
   `R = analyzeStrainRSM(rsm, Substrate=, Film=, Reflection=, Name=Value)`.
@@ -132,12 +155,25 @@ phase field and breaks at the MPB.
 
 ### Tests — `tests/testRsm.m` (extend)
 
-- `biaxialStrain`: zero-strain identity (a∥=a⊥ → a₀=a∥, ε=0); a hand-computed
-  strained case; ε∥/ε⊥ sign and the −f/1 ratio.
+- `biaxialStrain`: anchor to assertions the label-swap **cannot survive**, not
+  to numbers derived from the formula block (that would let a swapped impl and
+  a swapped expected-value pass together — the spec-and-test-from-one-source
+  trap):
+  - zero-strain identity (a∥=a⊥ → a₀=a∥, ε∥=ε⊥=0);
+  - **physical sign** — inject a known in-plane-*compressive* case (a∥ < a⊥)
+    and assert `ε∥ < 0` AND `ε⊥ > 0` (the swap flips both);
+  - **reconstruction identity** — assert `a∥ ≈ a₀·(1+ε∥)` and
+    `a⊥ ≈ a₀·(1+ε⊥)` to round-off (fails immediately if labels are swapped,
+    regardless of where the expected numbers came from);
+  - **invariant** — assert `ε⊥/ε∥ ≈ −f` for a nonzero-strain case.
 - `elasticFactor`: ν path, c13/c33 path, error path. (May live in
   `testIdentify.m` next to its consumer — implementer's call.)
 - `findRsmPeaks`: synthetic two-Gaussian cloud → both centroids within tol;
-  single-peak cloud → `film.found=false`; mask excludes the substrate.
+  single-peak cloud → `film.found=false`; mask excludes the substrate;
+  **close-pair cloud** (film within 1.5×MaskRadius of substrate) → still
+  resolves both AND sets `filmNearSubstrate`; **substrate-only / no clear
+  secondary** → `filmNotBrighter` flag rather than returning the substrate
+  twice.
 - `analyzeStrainRSM` synthetic: assemble slices with injected substrate+film
   at known (a∥,a⊥); recover a∥, a⊥, a₀, relaxation; PZT case recovers x.
 - `analyzeStrainRSM` real-data (gated on `isfile`): the 112 PtO₂/TiO₂ RSM →
@@ -148,17 +184,25 @@ phase field and breaks at the MPB.
 
 - `examples/demoStrainRSM.m` — run on the real 112 RSM, print the report.
 - `docs/USER_GUIDE.md` — new workflow subsection.
-- `docs/SCIENTIFIC_ASSUMPTIONS.md` — new section: 1/d convention, biaxial
-  relations, pseudocubic approximation caveat, relaxation definition,
-  approximate PtO₂ entry, Vegard/MPB caveat.
-- `docs/FEATURES.md` — mark RSM strain/composition done.
+- `docs/SCIENTIFIC_ASSUMPTIONS.md` — new section covering every item in
+  **Caveats & known limitations** below, verbatim in intent. The
+  validation-boundary sentence and the pseudocubic/Vegard definitional
+  caveat are required, not optional.
+- `docs/FEATURES.md` — mark RSM strain/composition done, with the explicit
+  note that strain/composition outputs are real-data-unvalidated this
+  iteration (geometry core only).
 
 ## Error handling
 
 - Missing `Reflection` → `arguments`-block / explicit error.
 - Unknown `Film`/`Substrate` → propagate `xrdc:lattice:unknownMaterial`.
-- Film peak not found → `R.film.found=false`, substrate-only result, flag set,
-  no error (mirrors the "never silently fail" pattern: surfaced, not hidden).
+- Film peak not found / no clear secondary → `R.film.found=false`, substrate-
+  only result, `filmNotBrighter` flag, no error (mirrors the "never silently
+  fail" pattern: surfaced, not hidden — and never returns the substrate as if
+  it were the film).
+- Film peak within `1.5 × MaskRadius` of the substrate → `filmNearSubstrate`
+  flag (the near-degenerate hard case; result is returned but wants a human
+  glance).
 - Substrate peak far from predicted → `flags` includes `substrateOffPrediction`
   with the percent offset (does not abort; the caller may have a real offset).
 - `l=0` or `h=k=0` reflection (no out-of-plane / no in-plane info) →
@@ -170,6 +214,51 @@ Every new numerical function gets a known-answer test (CLAUDE.md rule). The
 geometry core is validated against real TiO₂ truth; strain decomposition and
 composition against synthetic injected truth. Full `runtests` green before
 each commit; gated real-data test skips cleanly when the file is absent.
+
+**Validation boundary (state plainly, do not bury).** The real PtO₂/TiO₂ RSM
+validates *only the geometry core* — the hkl inversion against the unstrained
+substrate peak. Every part of the headline capability (biaxial decomposition,
+a₀ recovery, relaxation, composition, the PTO-vs-PZT disambiguation) is
+validated *only against synthetic injected truth*, which tests that the
+algebra inverts the forward model — not that the forward model matches a real
+strained film. Whether ν for PTO/PtO₂ is right, whether the pseudocubic
+approximation holds, and whether real peak shapes centroid where expected are
+all **untested against ground truth as of this iteration**.
+
+## Caveats & known limitations
+
+These go into `SCIENTIFIC_ASSUMPTIONS.md`. The first two are required.
+
+1. **Strain & composition are real-data-unvalidated this iteration.** See the
+   validation boundary above. A reader should not trust a reported ε or x
+   number without an independent check until a real strained film with known
+   parameters has been run through.
+2. **Pseudocubic approximation — and a Vegard definitional-consistency risk.**
+   For PTO/PZT the *relaxed* crystal is itself tetragonal (c/a ≈ 1.06), not
+   cubic. The biaxial decomposition assumes a single cubic reference a₀, so the
+   recovered a₀ is a pseudocubic strain-model *average* that conflates
+   spontaneous tetragonality with epitaxial strain — it is **not** a physical
+   relaxed lattice constant. Mapping it through Vegard is therefore doubly
+   approximate, and carries a concrete bias risk: the composition table's
+   tabulated `a` must be defined the *same way* as a₀ (pseudocubic average vs
+   true tetragonal a-axis). A table of bulk a-axis values fed a pseudocubic a₀
+   yields a clean-looking but systematically biased x. The implementer must
+   confirm the `composition.a` anchors and a₀ use a consistent definition (and
+   document which). Sits next to the existing MPB piecewise-validity caveat.
+3. **ν sensitivity.** a₀, relaxation, and both strain components all depend on
+   ν; an inaccurate ν biases all of them, not just strain. PtO₂'s ν is a
+   placeholder — flag the dependence.
+4. **Tilt assumed zero.** A tilted film (mosaic/miscut) biases kPar and hence
+   a∥ (and through it relaxation/composition). Out of scope this iteration; one
+   sentence in the assumptions doc so it isn't mistaken for handled.
+5. **Centroid bias from the analyzer/CTR streak.** 2D background and the
+   crystal-truncation-rod / analyzer streak through the substrate peak can pull
+   the intensity-weighted centroid; the substrate centroid is the more
+   exposed of the two. Note as a known small systematic.
+6. **`materials.json` identical-field tax.** Every new entry must mirror all
+   top-level fields (including empty elastic/composition placeholders) for the
+   struct-array decode. Tolerated now; a normalizing loader would remove the
+   footgun later (out of scope).
 
 ## Out of scope (future)
 
