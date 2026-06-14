@@ -477,3 +477,95 @@ function testFindRsmPeaksSubstrateOnly(tc)
     tc.verifyFalse(p.film.found);
     tc.verifyTrue(any(p.flags == "filmNotBrighter"));
 end
+
+% =====================================================================
+% analyzeStrainRSM — FR-7.x one-call strain/composition orchestrator
+% =====================================================================
+
+function scans = makeRsmScans(hkl, kSub, kFilm, ampFilm, lambda) %#ok<INUSL>
+%Helper: build twoThetaOmega slices whose assembled q-cloud has substrate+film
+%   Gaussians exactly at kSub, kFilm (=[kPar kPerp]). Geometry note: for a
+%   fixed secondAxis the asymmetric transform traces a RADIAL line at angle
+%   phi = secondAxis - 2theta_ctr/2 (constant along the slice), radius
+%   (2/lambda)sin(theta). So to put a slice through a target's phi we set
+%   secondAxis = phi_target + 2theta_ctr/2; the target lands at that slice's
+%   2theta = 2*asin(lambda|k|/2). (hkl is unused here but kept for caller
+%   symmetry / documentation.)
+    kAll = [kSub; kFilm];
+    kmag = hypot(kAll(:,1), kAll(:,2));
+    tt   = 2*asin(lambda*kmag/2)*180/pi;            % 2theta per target (deg)
+    phi  = atan2(kAll(:,1), kAll(:,2))*180/pi;       % radial angle per target (deg)
+    pad  = 2.0;
+    ttRange = [min(tt)-pad, max(tt)+pad];
+    ttGrid  = linspace(ttRange(1), ttRange(2), 240).';
+    ttCtr   = mean(ttRange);                          % = 2theta_ctr the transform uses
+    sa      = phi + ttCtr/2;                           % secondAxis hitting each phi
+    omRange = [min(sa)-pad, max(sa)+pad];
+    omGrid  = linspace(omRange(1), omRange(2), 100);
+    wS = 0.002; wF = 0.005;                            % sharp substrate, broad film
+    scans = repmat(xrdc.io.emptyScan(), 1, numel(omGrid));
+    for j = 1:numel(omGrid)
+        s = xrdc.io.emptyScan();
+        s.twoTheta = ttGrid; s.secondAxis = omGrid(j);
+        s.secondAxisName = "Omega"; s.scanType = "twoThetaOmega"; s.lambda = lambda;
+        [kp, kz] = xrdc.rsm.toReciprocalSpace(s);
+        I = 1 + 1000  *exp(-((kp-kSub(1)).^2 +(kz-kSub(2)).^2 )/(2*wS^2)) ...
+              + ampFilm*exp(-((kp-kFilm(1)).^2+(kz-kFilm(2)).^2)/(2*wF^2));
+        s.counts = I;
+        scans(j) = s;
+    end
+end
+
+function testAnalyzeStrainRSMSyntheticPseudomorphic(tc)
+    % SrTiO3 [1 0 3] substrate; film pseudomorphic in-plane (a_par = a_sub),
+    % tetragonally strained out-of-plane (a_perp = 4.10).
+    lambda = 1.5406; hkl = [1 0 3]; hk = hypot(hkl(1), hkl(2));
+    aSub = 3.905; aParF = 3.905; aPerpF = 4.10;
+    kSub  = [hk/aSub,  hkl(3)/aSub];
+    kFilm = [hk/aParF, hkl(3)/aPerpF];
+    scans = makeRsmScans(hkl, kSub, kFilm, 350, lambda);
+    R = xrdc.rsm.analyzeStrainRSM(scans, Substrate="SrTiO3", Film="PbTiO3", Reflection=hkl);
+    tc.verifyEqual(R.substrate.aMeas, aSub,  'AbsTol', 5e-3);
+    tc.verifyEqual(R.aPar,  aParF,  'AbsTol', 5e-3);
+    tc.verifyEqual(R.aPerp, aPerpF, 'AbsTol', 5e-3);
+    % pseudomorphic: a_par == a_sub -> relaxation ~ 0
+    tc.verifyLessThan(abs(R.relaxation), 0.1);
+    tc.verifyTrue(R.pseudomorphic);
+    % a0 matches the pure-function result
+    f = xrdc.lattice.elasticFactor(xrdc.lattice.loadMaterials("PbTiO3"));
+    a0 = xrdc.rsm.biaxialStrain(R.aPar, R.aPerp, f);
+    tc.verifyEqual(R.a0, a0, 'AbsTol', 1e-6);
+end
+
+function testAnalyzeStrainRSMSyntheticPZTComposition(tc)
+    % Fully-relaxed cubic PZT film with a = 3.99 -> a0 = 3.99 -> x = 0.3 on
+    % the Vegard a-anchor table; relaxation = 1 (a_par == a0, well off a_sub).
+    lambda = 1.5406; hkl = [1 0 3]; hk = hypot(hkl(1), hkl(2));
+    aSub = 3.905; aFilm = 3.99;                 % cubic film => a_par = a_perp
+    kSub  = [hk/aSub,  hkl(3)/aSub];
+    kFilm = [hk/aFilm, hkl(3)/aFilm];
+    scans = makeRsmScans(hkl, kSub, kFilm, 350, lambda);
+    R = xrdc.rsm.analyzeStrainRSM(scans, Substrate="SrTiO3", Film="PZT", Reflection=hkl);
+    tc.verifyEqual(R.a0, 3.99, 'AbsTol', 5e-3);
+    tc.verifyEqual(R.x, 0.30, 'AbsTol', 0.02);   % interp on composition.a
+    tc.verifyGreaterThan(R.relaxation, 0.8);     % fully relaxed
+end
+
+function testAnalyzeStrainRSMRequiresAsymmetric(tc)
+    scans = makeRsmScans([1 0 3], [0.256 0.768], [0.244 0.732], 300, 1.5406);
+    tc.verifyError(@() xrdc.rsm.analyzeStrainRSM(scans, ...
+        Substrate="SrTiO3", Film="PbTiO3", Reflection=[0 0 2]), 'xrdc:rsm:badReflection');
+end
+
+function testAnalyzeStrainRSMRealPtO2TiO2(tc)
+    % GATED real-data known-answer: recover TiO2 substrate a/c from the 112
+    % RSM (geometry core). Film path must run end-to-end with Film="PtO2".
+    p = fullfile(fileparts(mfilename('fullpath')), '..', '..', 'data', ...
+        'HP PtO2 on TiO2 001 112 RSM_C_HP PtO2 on TiO2 001 112 RSM_C.xrdml');
+    tc.assumeTrue(isfile(p), 'PtO2/TiO2 112 RSM not present');
+    R = xrdc.rsm.analyzeStrainRSM(p, Substrate="TiO2", Film="PtO2", Reflection=[1 1 2]);
+    tc.verifyTrue(R.substrate.found);
+    tc.verifyEqual(R.substrate.aMeas, 4.593, 'AbsTol', 0.02);   % rutile a
+    tc.verifyEqual(R.substrate.cMeas, 2.959, 'AbsTol', 0.02);   % rutile c
+    tc.verifyTrue(isfinite(R.aPar) && isfinite(R.aPerp));
+end
