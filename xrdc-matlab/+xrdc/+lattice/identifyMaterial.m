@@ -280,9 +280,5 @@ function [hull, cBulk, cPred, x] = candidateWindow(e, cMeas, aSub)
 end
 
 function f = strainFactor(e)
-    if isfield(e.elastic, 'nu') && ~isempty(e.elastic.nu)
-        f = 2 * e.elastic.nu / (1 - e.elastic.nu);
-    else
-        f = 2 * e.elastic.c13 / e.elastic.c33;
-    end
+    f = xrdc.lattice.elasticFactor(e);
 end

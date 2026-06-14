@@ -367,6 +367,19 @@ function testIdentifyS31Heterostructure(tc)
     tc.verifyTrue(hasPTO, 'PTO not among any series candidates');
 end
 
+function testElasticFactorNuAndC13C33(tc)
+    % nu path: f = 2 nu / (1 - nu)
+    sto = xrdc.lattice.loadMaterials("SrTiO3");   % nu = 0.232
+    tc.verifyEqual(xrdc.lattice.elasticFactor(sto), ...
+        2*0.232/(1-0.232), 'AbsTol', 1e-12);
+    % c13/c33 path: f = 2 c13/c33
+    e = struct('elastic', struct('c13', 70, 'c33', 90));
+    tc.verifyEqual(xrdc.lattice.elasticFactor(e), 2*70/90, 'AbsTol', 1e-12);
+    % error path: neither present
+    bad = struct('elastic', struct());
+    tc.verifyError(@() xrdc.lattice.elasticFactor(bad), 'xrdc:lattice:noElastic');
+end
+
 % ---------- KNOWN BUG: (00l)-only PTO-vs-PZT mis-ranking (gated) ----------
 %
 % On a real PbTiO3 film the measured out-of-plane c (~4.11 A) sits BELOW
