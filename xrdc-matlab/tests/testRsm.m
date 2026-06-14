@@ -538,17 +538,22 @@ function testAnalyzeStrainRSMSyntheticPseudomorphic(tc)
 end
 
 function testAnalyzeStrainRSMSyntheticPZTComposition(tc)
-    % Fully-relaxed cubic PZT film with a = 3.99 -> a0 = 3.99 -> x = 0.3 on
-    % the Vegard a-anchor table; relaxation = 1 (a_par == a0, well off a_sub).
+    % Tetragonal PZT film (a_par != a_perp) chosen so the relaxed pseudocubic
+    % a0 lands on the x=0.3 Vegard a-anchor (3.99). NOTE: a *cubic* film would
+    % be collinear with the cubic substrate in q-space ([1 0 3]: kPar/kPerp =
+    % h/l for both lattices) and could not be separated by the auto-finder; a
+    % tetragonal film gives the angular separation needed. Validates the
+    % composition wiring (a0 -> interp1 on composition.a -> x).
     lambda = 1.5406; hkl = [1 0 3]; hk = hypot(hkl(1), hkl(2));
-    aSub = 3.905; aFilm = 3.99;                 % cubic film => a_par = a_perp
+    aSub = 3.905; aParF = 3.93; aPerpF = 4.0415;   % -> a0 = 3.990 -> x = 0.3
     kSub  = [hk/aSub,  hkl(3)/aSub];
-    kFilm = [hk/aFilm, hkl(3)/aFilm];
+    kFilm = [hk/aParF, hkl(3)/aPerpF];
     scans = makeRsmScans(hkl, kSub, kFilm, 350, lambda);
     R = xrdc.rsm.analyzeStrainRSM(scans, Substrate="SrTiO3", Film="PZT", Reflection=hkl);
     tc.verifyEqual(R.a0, 3.99, 'AbsTol', 5e-3);
     tc.verifyEqual(R.x, 0.30, 'AbsTol', 0.02);   % interp on composition.a
-    tc.verifyGreaterThan(R.relaxation, 0.8);     % fully relaxed
+    tc.verifyGreaterThan(R.relaxation, 0.15);    % partially relaxed
+    tc.verifyLessThan(R.relaxation, 0.50);
 end
 
 function testAnalyzeStrainRSMRequiresAsymmetric(tc)
