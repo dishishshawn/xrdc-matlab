@@ -423,6 +423,55 @@ near-degenerate.
 
 ---
 
+## RSM strain & composition (xrdc.rsm.analyzeStrainRSM)
+
+**Convention.** Reciprocal coordinates use the 1/d convention of
+`toReciprocalSpace` (|k| = 2 sinθ/λ). For reflection [h k l]:
+a∥ = √(h²+k²)/kPar, a⊥ = l/kPerp.
+
+**Biaxial decomposition.** a0 = (a⊥ + f·a∥)/(1+f),
+ε∥ = (a∥−a0)/a0, ε⊥ = (a⊥−a0)/a0, with f = 2ν/(1−ν) or 2·c₁₃/c₃₃. These
+satisfy ε⊥/ε∥ = −f and a = a0(1+ε) exactly.
+
+**Validation boundary (important).** Only the geometry core (the hkl
+inversion) is validated against real data — the unstrained TiO₂ substrate
+peak of the PtO₂/TiO₂ 112 RSM (a=4.593, c=2.959 recovered to 4 sig figs).
+Biaxial decomposition, a0 recovery, relaxation, and composition are
+validated only against synthetic injected truth, which tests that the
+algebra inverts the forward model, not that the model matches a real
+strained film. Treat reported ε and x as unvalidated against ground truth
+until a known real strained film has been run through.
+
+**Pseudocubic approximation + Vegard consistency.** For PTO/PZT the relaxed
+crystal is itself tetragonal (c/a≈1.06); a0 is a pseudocubic strain-model
+average that conflates spontaneous tetragonality with epitaxial strain, not
+a physical relaxed constant. Composition uses the in-plane a-axis anchors
+(`composition.a`) inverted at a0 — confirm the table's a and a0 share the
+same definition or x is biased. Vegard is piecewise-valid within one phase
+field and breaks at the MPB.
+
+**ν sensitivity.** a0, relaxation, and both strain components depend on ν; an
+inaccurate ν biases all of them. The PtO₂ entry's ν is a placeholder.
+
+**Tilt assumed zero.** A tilted (mosaic/miscut) film biases kPar and hence
+a∥, relaxation, and composition. Not corrected this iteration.
+
+**Centroid bias.** The analyzer/CTR streak through the substrate peak can
+pull the intensity-weighted centroid; the substrate centroid is the more
+exposed. Known small systematic.
+
+**Auto-finder degeneracy (collinear peaks).** The peak finder separates film
+and substrate by locating two distinct intensity maxima in the q-map. When
+the film and substrate are *collinear* in reciprocal space — same q-space
+radial direction, differing only in radius — they cannot be separated and
+the film is reported at/near the substrate (flagged `filmNearSubstrate`). On
+a symmetric-index reflection [h 0 l] this happens for a *cubic* film whose
+in-plane parameter shares the substrate's kPar/kPerp = h/l ratio. Real
+tetragonal/strained films break the degeneracy; the `filmNearSubstrate` flag
+marks the cases that need a human glance.
+
+---
+
 ## Summary
 
 | Tier | Item | Lines |

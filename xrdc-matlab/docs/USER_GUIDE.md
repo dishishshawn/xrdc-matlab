@@ -226,6 +226,30 @@ noise, so very weak films may not appear automatically; type a number into the
 GUI's **Min prom (%)** field (a percentage of the maximum count) to dig deeper.
 The auto path also merges the Kα₁/Kα₂ substrate split (0.2° separation).
 
+### 4.7 Strain & composition from an asymmetric RSM
+
+From a single asymmetric RSM you can recover the film's in-plane and
+out-of-plane lattice parameters, its biaxial strain, the relaxed
+(pseudocubic) parameter a0, the degree of relaxation, and — for an alloy
+film with a Vegard table (PZT) — composition:
+
+```matlab
+R = xrdc.rsm.analyzeStrainRSM("data/your_103_RSM.xrdml", ...
+        Substrate="SrTiO3", Film="PbTiO3", Reflection=[1 0 3]);
+R.aPar, R.aPerp, R.a0, R.relaxation, R.x
+```
+
+`Reflection` must be asymmetric (l≠0 and h²+k²>0). The substrate peak is the
+internal reference (it also absorbs a shared zero-offset). `relaxation` is 0
+for a film fully strained to the substrate and 1 for a fully relaxed film.
+
+**Trust boundary (read this):** the geometry (peak→lattice-parameter
+inversion) is validated against the TiO₂ substrate of a real PtO₂/TiO₂ map.
+The strain and composition outputs are, as of this release, validated only
+against synthetic data — verify a reported strain or composition
+independently before quoting it. For PTO/PZT, a0 is a pseudocubic average,
+not a physical relaxed cubic constant; see SCIENTIFIC_ASSUMPTIONS.
+
 ---
 
 ## 5. Plot customisation

@@ -29,6 +29,12 @@ _Last reconciled: 2026-06-09._
 - ✅ XRR — critical edge, Kiessig fringes, film thickness (`+xrr`)
 - ✅ XRR slab-model fit — Parratt + Névot–Croce, fits thickness/density/roughness with Jacobian errors (`fitReflectivity`, `reflectivityModel`, `opticalConstants`)
 - ✅ Reciprocal-space map (`area`) — load, transform, contour (`+rsm`)
+- ✅ **RSM strain & composition** (`xrdc.rsm.analyzeStrainRSM`) — DONE. Auto-detects
+  substrate+film peaks in an asymmetric RSM, recovers a∥/a⊥, biaxial strain,
+  relaxed a0, relaxation, and PZT composition for a declared film. Geometry
+  validated on real TiO₂ substrate; strain/composition synthetic-only this
+  iteration (see SCIENTIFIC_ASSUMPTIONS). Candidate ranking / identifyMaterial
+  integration is a deliberate follow-on.
 - ✅ Scan-type auto-detection from file content + name
 
 ## Peak detection & fitting (`+xrdc/+peaks`)
@@ -100,7 +106,7 @@ _Last reconciled: 2026-06-09._
 - ✅ XRR — our ~40 nm (fringe spacing) vs Tushar's GenX fit ~36 nm reconciled: not a bug.
       Thickness is flat vs low-angle cutoff (refraction ruled out); gap is the expected
       fringe-spacing-vs-Parratt difference. Only GenX model params from Tushar would close it.
-- ⬜ RSM — no external reference checked yet
+- ⬜ RSM strain/composition — geometry (hkl inversion) validated on TiO₂ substrate of real PtO₂/TiO₂ 112 map (a=4.593, c=2.959 Å); biaxial strain/composition validated synthetic-only this iteration
 
 ## Planned / wanted (from README, not started)
 - ⬜ Statistics & ML: bootstrap CIs on fit parameters, outlier rejection on peak picks
