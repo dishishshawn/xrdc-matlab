@@ -366,3 +366,86 @@ function testIdentifyS31Heterostructure(tc)
         any(string({c.name}) == "PbTiO3"), R.series.candidates));
     tc.verifyTrue(hasPTO, 'PTO not among any series candidates');
 end
+
+% ---------- KNOWN BUG: (00l)-only PTO-vs-PZT mis-ranking (gated) ----------
+%
+% On a real PbTiO3 film the measured out-of-plane c (~4.11 A) sits BELOW
+% both PbTiO3's strain window ([cBulk 4.152, cPred 4.151]) and PZT's
+% ([4.146, 4.261]) - the film has reduced tetragonality, c < bulk. The
+% scorer ranks dilute PZT just above PbTiO3 purely because PZT's bulk c is
+% 0.006 A lower (closer to 4.11), NOT because the film is Zr-doped. The
+% series is correctly flagged 'ambiguous' and PbTiO3 is always the immediate
+% runner-up, so the answer is hedged-wrong, never silently wrong.
+%
+% These are CHARACTERIZATION tests: they assert the current (wrong) ranking
+% so it is visible in the suite. The physically-correct best match is
+% PbTiO3. The real fix needs in-plane a from an asymmetric RSM (Feature A).
+% WHEN ONE OF THESE FAILS, the scoring/RSM fix probably landed - confirm
+% PbTiO3 now wins, then invert the bestMatch assertion (do not just delete).
+
+function d = dataDumpDir()
+%Helper (not a test): repo-root data dump, anchored on this file's location.
+    d = fullfile(fileparts(mfilename('fullpath')), '..', '..', 'data');
+end
+
+function s = ptoFilmSeries(tc, R)
+%Helper (not a test): the series whose candidates include PbTiO3 (the film).
+    idx = find(cellfun(@(c) ~isempty(c) && ...
+        any(string({c.name}) == "PbTiO3"), R.series.candidates));
+    tc.assertNotEmpty(idx, 'no series carries a PbTiO3 candidate');
+    s = R.series(idx(1), :);
+end
+
+function testIdentifyS11KnownMisrankPtoVsPzt(tc)
+    % S11: pure PbTiO3 film on STO. KNOWN-WRONG: PZT outranks PbTiO3.
+    p = fullfile(dataDumpDir(), ...
+        'TR_S11_PTO_STO(100)_580c_150mT_20000sh_5hz_2theta omega_04162026.txt');
+    tc.assumeTrue(isfile(p), 'S11 data dump scan not present');
+    scan = xrdc.io.readScan(p);
+    pk = xrdc.peaks.findPeaks(scan, 'MinProminence', max(scan.counts)*2e-4);
+    R  = xrdc.lattice.identifyMaterial(pk, 1.5406, Substrate="SrTiO3");
+    tc.verifyTrue(R.substrate.found);
+
+    s = ptoFilmSeries(tc, R);
+    tc.verifyGreaterThan(s.cMeas, 4.10);   % compressed-below-bulk film c
+    tc.verifyLessThan(s.cMeas, 4.12);
+    tc.verifyTrue(any(s.flags{1} == "ambiguous"), ...
+        'film series should be flagged ambiguous');
+
+    cand = s.candidates{1};
+    names = string({cand.name});
+    tc.verifyTrue(all(ismember(["PZT","PbTiO3"], names)), ...
+        'both PZT and PbTiO3 must be candidates');
+    % CHARACTERIZATION (known-wrong): PZT currently wins, PbTiO3 second.
+    tc.verifyEqual(string(s.bestMatch), "PZT", ...
+        'S11 ranking changed - PTO-vs-PZT fix may have landed; see header note');
+    pzScore  = cand(names == "PZT").score;
+    ptoScore = cand(names == "PbTiO3").score;
+    tc.verifyGreaterThan(pzScore, ptoScore);
+end
+
+function testIdentifyS31KnownMisrankPtoFilm(tc)
+    % S31 heterostructure: PTO film series mis-ranks the same way as S11,
+    % while the SRO buffer + STO substrate series are identified correctly.
+    p = fullfile(validationInputDir(), 'Heterostructure raw data', ...
+        ['TR_S31_1_PTO on SRO_STO(100)_580c_150mT_and_700c_ 200mT', ...
+         '_10500sh_5hz_2theta_omega_05202026.txt']);
+    tc.assumeTrue(isfile(p), 'S31 validation scan not present');
+    scan = xrdc.io.readScan(p);
+    pk = xrdc.peaks.findPeaks(scan, 'MinProminence', max(scan.counts)*2e-4);
+    R  = xrdc.lattice.identifyMaterial(pk, 1.5406, Substrate="SrTiO3");
+    tc.verifyTrue(R.substrate.found);
+    % SRO buffer is correctly identified somewhere (sanity that the scan and
+    % grouping are right, isolating the failure to the PTO film ranking).
+    tc.verifyTrue(any(R.series.bestMatch == "SrRuO3"), ...
+        'SRO buffer series not identified');
+
+    s = ptoFilmSeries(tc, R);
+    tc.verifyGreaterThan(s.cMeas, 4.09);
+    tc.verifyLessThan(s.cMeas, 4.12);
+    tc.verifyTrue(any(s.flags{1} == "ambiguous"), ...
+        'film series should be flagged ambiguous');
+    % CHARACTERIZATION (known-wrong): PZT currently wins, PbTiO3 second.
+    tc.verifyEqual(string(s.bestMatch), "PZT", ...
+        'S31 ranking changed - PTO-vs-PZT fix may have landed; see header note');
+end
