@@ -52,10 +52,10 @@ function xrdcApp()
         'FontName', T.font, 'FontSize', 24, 'FontWeight', 'bold', ...
         'FontColor', T.gold, 'VerticalAlignment', 'center');
 
-    % Top bar: load (primary, gold) + export + customize (secondary)
-    topBar = uigridlayout(grid, [1 4]);
+    % Top bar: load (primary, gold) + export + customize + settings (secondary)
+    topBar = uigridlayout(grid, [1 5]);
     topBar.Layout.Row = 2; topBar.Layout.Column = [1 2];
-    topBar.ColumnWidth = {150, 160, 170, '1x'};
+    topBar.ColumnWidth = {150, 160, 170, 130, '1x'};
     topBar.ColumnSpacing = 8; topBar.Padding = [0 0 0 0];
     topBar.BackgroundColor = T.bg;
     uibutton(topBar, 'Text', 'Load Scan...', ...
@@ -70,6 +70,10 @@ function xrdcApp()
         'FontName', T.font, 'FontSize', 13, 'Enable', 'off', ...
         'BackgroundColor', T.btn, 'FontColor', T.text, ...
         'ButtonPushedFcn', @(~,~) onCustomizePlot(fig));
+    uibutton(topBar, 'Text', 'Settings...', ...
+        'FontName', T.font, 'FontSize', 13, ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
+        'ButtonPushedFcn', @(~,~) onSettings(fig));
 
     % Info strip
     infoLbl = uilabel(grid, 'Text', '  No scan loaded. Click "Load Scan..." to begin.', ...
@@ -108,6 +112,7 @@ function xrdcApp()
     st.detectedType = "";
     st.params      = struct();
     st.style       = defaultStyle();
+    st.cfg         = xrdc.config.load();   % persisted lab presets (prefdir JSON)
     st.ax          = ax;
     st.infoLbl     = infoLbl;
     st.exportBtn   = exportBtn;
@@ -155,11 +160,13 @@ function onLoadScan(fig)
         fnLower = lower(string(file));
         if endsWith(fnLower, '.xrdml') && contains(fnLower, 'rsm')
             st.rsmScans    = xrdc.rsm.loadAreaScan({fullPath});
+            st.rsmScans    = applyWavelengthPreset(st.rsmScans, st.cfg);
             st.scan        = st.rsmScans(1);   % representative
             st.detectedType = "rsm";
         else
             st.scan        = xrdc.io.readScan(fullPath);
-            st.detectedType = detectScanType(st.scan, fnLower);
+            st.scan        = applyWavelengthPreset(st.scan, st.cfg);
+            st.detectedType = detectScanType(st.scan, fnLower, st.cfg);
         end
     catch ME
         uialert(fig, sprintf('Failed to load the file:\n\n%s', ME.message), ...
@@ -299,8 +306,11 @@ function buildAnalysisPanel(fig)
     t = char(lower(string(st.detectedType)));
     switch t
         case 'omega'
+            shapes   = {'gauss','lorentz','pseudoVoigt'};
+            rcShape  = pickDefault(char(st.cfg.rcShape), shapes);
+            st.params.shape = rcShape;        % seed so the first fit uses the preset
             row = addEdit (g, row, 'Fit window (°)', '0.5', @(v) onParamChange(fig, 'fitWindow', v));
-            row = addDrop (g, row, 'Shape', {'gauss','lorentz','pseudoVoigt'}, 'gauss', ...
+            row = addDrop (g, row, 'Shape', shapes, rcShape, ...
                                                       @(v) onParamChange(fig, 'shape',     v));
             showFit = isfield(st.params, 'showFit') && st.params.showFit;
             row = addCheck(g, row, 'Show fit curve', showFit, ...
@@ -311,7 +321,9 @@ function buildAnalysisPanel(fig)
         case 'twothetaomega'
             row = addEdit (g, row, 'Min prom (%)',   'auto', @(v) onParamChange(fig, 'promPct',  v));
             subs = identifiableSubstrates();
-            row = addDrop (g, row, 'Substrate', subs, subs{1}, ...
+            defSub = pickDefault(char(st.cfg.substrate), subs);
+            st.params.substrate = defSub;     % seed so Identify uses the preset
+            row = addDrop (g, row, 'Substrate', subs, defSub, ...
                                                       @(v) onSubstrateChange(fig, v));
             row = addIdentifyButton(g, row, fig); %#ok<NASGU>
         case 'xrr'
@@ -373,6 +385,17 @@ function row = addCheck(g, row, label, value, cb)
         'ValueChangedFcn', @(src, ~) cb(src));
     chk.Layout.Row = row; chk.Layout.Column = [1 2];
     row = row + 1;
+end
+
+function val = pickDefault(want, items)
+%PICKDEFAULT  Use WANT as a dropdown default if it's a valid item, else item 1.
+%   Lets a configured preset (substrate, RC shape) select a dropdown entry
+%   while staying robust if the saved value isn't among the current choices.
+    if ismember(want, items)
+        val = want;
+    else
+        val = items{1};
+    end
 end
 
 function subs = identifiableSubstrates()
@@ -495,36 +518,70 @@ function runAnalysis(fig)
     end
 end
 
-function t = detectScanType(scan, fnLower)
+function t = detectScanType(scan, fnLower, cfg)
 %DETECTSCANTYPE  Pick the right analysis route from filename + scan.scanType.
 %
 %   Filename keywords win over scanType because Rigaku labels everything
 %   "twoThetaOmega" even when the scan is really XRR or an RC, and the
 %   filename is what the user actually recognises.
+%
+%   The filename cues encode the Paik lab's naming convention; a lab whose
+%   files are named differently turns them off via Settings
+%   (cfg.useFilenameRules = false) and relies on the file's own scanType
+%   plus the configured fallback (cfg.defaultScanType).
 
-    if contains(fnLower, "xrr")
-        t = "xrr";                   return
+    if nargin < 3, cfg = xrdc.config.defaults(); end
+    fallback = routeOf(cfg.defaultScanType);
+
+    if cfg.useFilenameRules
+        if contains(fnLower, "xrr")
+            t = "xrr";                   return
+        end
+        if contains(fnLower, "rsm")
+            t = "rsm";                   return
+        end
+        if contains(fnLower, ["phi", "φ"])
+            t = "phi";                   return
+        end
+        if contains(fnLower, [" rc", "_rc", "rocking"])
+            t = "omega";                 return
+        end
+        if contains(fnLower, ["2theta", "th2th", "2th", "theta-omega"])
+            t = "twothetaomega";         return
+        end
     end
-    if contains(fnLower, "rsm")
-        t = "rsm";                   return
-    end
-    if contains(fnLower, ["phi", "φ"])
-        t = "phi";                   return
-    end
-    if contains(fnLower, [" rc", "_rc", "rocking"])
-        t = "omega";                 return
-    end
-    if contains(fnLower, ["2theta", "th2th", "2th", "theta-omega"])
-        t = "twothetaomega";         return
-    end
-    % Fall back to the loader's own inference
+    % Fall back to the loader's own inference, then the configured default.
     t = lower(string(scan.scanType));
-    if t == "twothetaomega"   % leave as-is
-        return
-    elseif t == "omega" || t == "phi" || t == "area"
+    if t == "twothetaomega" || t == "omega" || t == "phi" || t == "area"
         return
     else
-        t = "twothetaomega";         % safe default: treat as θ-2θ
+        t = fallback;                    % configured fallback route
+    end
+end
+
+function route = routeOf(scanType)
+%ROUTEOF  Map a configured scan-type name to an analysis route string.
+    switch lower(string(scanType))
+        case {"omega", "rc"},                route = "omega";
+        case "phi",                          route = "phi";
+        case "xrr",                          route = "xrr";
+        case {"rsm", "area"},                route = "rsm";
+        otherwise,                           route = "twothetaomega";
+    end
+end
+
+function scan = applyWavelengthPreset(scan, cfg)
+%APPLYWAVELENGTHPRESET  Override λ for formats that drop it from the file.
+%   Rigaku .txt/.hgx and plain text exports don't carry the wavelength, so
+%   the readers hardcode Cu Kα1; this stamps the lab's configured λ onto
+%   those scans instead. Formats that DO carry a real λ (PANalytical .xrdml,
+%   Philips .x00) are left untouched, even when applyWavelength is on.
+    if ~cfg.applyWavelength, return, end
+    droppedFormats = ["rigakuTxt", "rigakuHgx", "text", ""];
+    for i = 1:numel(scan)
+        if ismember(string(scan(i).sourceFormat), droppedFormats)
+            scan(i).lambda = cfg.wavelength;
+        end
     end
 end
 
@@ -1159,11 +1216,142 @@ function onCustomizePlot(fig)
     end
 end
 
+% =====================================================================
+% Lab-preset settings menu (persisted to prefdir JSON)
+% =====================================================================
+function onSettings(fig)
+%ONSETTINGS  Edit and persist the lab presets (xrdc.config).
+%   Overrides four defaults that are baked in for the Paik lab's Rigaku and
+%   would be wrong elsewhere: X-ray wavelength (for file formats that drop
+%   it), the default substrate, the filename→scan-type rules, and the
+%   rocking-curve default fit shape. "Save" writes the settings to the
+%   per-user prefdir JSON (xrdc.config.configPath) so they persist across
+%   sessions, then re-applies them to the loaded scan.
+    st  = fig.UserData;
+    cfg = st.cfg;
+    T   = appTheme();
+
+    d = uifigure('Name', 'Settings — Lab presets', 'Position', [240 180 420 380], ...
+        'Color', T.bg);
+    try, d.Theme = 'light'; catch, end
+    g = uigridlayout(d, [9 2]);
+    g.RowHeight   = [repmat({30}, 1, 7), {'1x'}, {36}];
+    g.ColumnWidth = {190, '1x'};
+    g.Padding     = [12 12 12 12];
+    g.RowSpacing  = 6;
+    g.BackgroundColor = T.bg;
+
+    subs   = identifiableSubstrates();
+    shapes = {'gauss','lorentz','pseudoVoigt'};
+    types  = {'twoThetaOmega','omega','phi','xrr','rsm'};
+
+    f = struct(); r = 1;
+    [f.wavelength, r]       = dlgEdit (g, r, 'X-ray wavelength λ (Å)', cfg.wavelength);
+    [f.applyWavelength, r]  = dlgCheck(g, r, 'Apply λ to files that drop it', ...
+                                                logical(cfg.applyWavelength));
+    [f.substrate, r]        = dlgDrop (g, r, 'Default substrate', subs, ...
+                                                pickDefault(char(cfg.substrate), subs));
+    [f.rcShape, r]          = dlgDrop (g, r, 'Rocking-curve fit shape', shapes, ...
+                                                pickDefault(char(cfg.rcShape), shapes));
+    [f.useFilenameRules, r] = dlgCheck(g, r, 'Use filename scan-type rules', ...
+                                                logical(cfg.useFilenameRules));
+    [f.defaultScanType, r]  = dlgDrop (g, r, 'Default scan type', types, ...
+                                                pickDefault(char(cfg.defaultScanType), types));
+
+    note = uilabel(g, 'Text', ['Saved to ' char(xrdc.config.configPath())], ...
+        'FontAngle', 'italic', 'FontName', T.font, 'FontColor', T.textDim, ...
+        'WordWrap', 'on');
+    note.Layout.Row = 7; note.Layout.Column = [1 2];
+
+    btns = uigridlayout(g, [1 3], 'Padding', [0 0 0 0]);
+    btns.Layout.Row = 9; btns.Layout.Column = [1 2];
+    btns.BackgroundColor = T.bg;
+    uibutton(btns, 'Text', 'Save', 'FontWeight', 'bold', 'FontName', T.font, ...
+        'BackgroundColor', T.gold, 'FontColor', T.ink, ...
+        'ButtonPushedFcn', @(~,~) saveSettings());
+    uibutton(btns, 'Text', 'Restore defaults', 'FontName', T.font, ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
+        'ButtonPushedFcn', @(~,~) restoreDefaults());
+    uibutton(btns, 'Text', 'Close', 'FontName', T.font, ...
+        'BackgroundColor', T.btn, 'FontColor', T.text, ...
+        'ButtonPushedFcn', @(~,~) close(d));
+
+    function saveSettings()
+        lam = str2double(strtrim(f.wavelength.Value));
+        if ~isfinite(lam) || lam <= 0
+            uialert(d, 'Wavelength must be a positive number (Å).', ...
+                'Invalid setting', 'Icon', 'warning');
+            return
+        end
+        nc = xrdc.config.defaults();
+        nc.wavelength       = lam;
+        nc.applyWavelength  = f.applyWavelength.Value;
+        nc.substrate        = string(f.substrate.Value);
+        nc.rcShape          = string(f.rcShape.Value);
+        nc.useFilenameRules = f.useFilenameRules.Value;
+        nc.defaultScanType  = string(f.defaultScanType.Value);
+        try
+            xrdc.config.save(nc);
+        catch ME
+            uialert(d, sprintf('Could not save settings:\n\n%s', ME.message), ...
+                'Save failed', 'Icon', 'error');
+            return
+        end
+        applyConfig(fig, nc);
+        close(d);
+    end
+
+    function restoreDefaults()
+        dc = xrdc.config.defaults();
+        f.wavelength.Value       = char(string(dc.wavelength));
+        f.applyWavelength.Value  = logical(dc.applyWavelength);
+        f.substrate.Value        = pickDefault(char(dc.substrate), subs);
+        f.rcShape.Value          = pickDefault(char(dc.rcShape), shapes);
+        f.useFilenameRules.Value = logical(dc.useFilenameRules);
+        f.defaultScanType.Value  = pickDefault(char(dc.defaultScanType), types);
+    end
+end
+
+function applyConfig(fig, cfg)
+%APPLYCONFIG  Store new presets and re-apply them to the loaded scan.
+%   Re-stamps the wavelength, re-routes the scan type under the new filename
+%   rules, and rebuilds the analysis panel so the substrate / RC-shape
+%   defaults refresh. Per-scan tweaks are reset (a settings change is a
+%   deliberate reconfigure); plot-style overrides are preserved.
+    st     = fig.UserData;
+    st.cfg = cfg;
+    if ~isempty(st.scan)
+        if isempty(st.rsmScans)
+            st.scan = applyWavelengthPreset(st.scan, cfg);
+            [~, nm, ext] = fileparts(st.filePath);
+            st.detectedType = detectScanType(st.scan, lower(string([nm ext])), cfg);
+        else
+            st.rsmScans = applyWavelengthPreset(st.rsmScans, cfg);
+            st.scan     = st.rsmScans(1);
+        end
+        st.params = struct();
+    end
+    fig.UserData = st;
+    if ~isempty(st.scan)
+        buildAnalysisPanel(fig);
+        runAnalysis(fig);
+    end
+end
+
 function [h, row] = dlgEdit(g, row, label, val)
     T = appTheme();
     lbl = uilabel(g, 'Text', label, 'FontName', T.font, 'FontColor', T.text);
     lbl.Layout.Row = row; lbl.Layout.Column = 1;
     h = uieditfield(g, 'Value', char(string(val)));
+    h.Layout.Row = row; h.Layout.Column = 2;
+    row = row + 1;
+end
+
+function [h, row] = dlgCheck(g, row, label, val)
+    T = appTheme();
+    lbl = uilabel(g, 'Text', label, 'FontName', T.font, 'FontColor', T.text);
+    lbl.Layout.Row = row; lbl.Layout.Column = 1;
+    h = uicheckbox(g, 'Text', '', 'Value', logical(val));
     h.Layout.Row = row; h.Layout.Column = 2;
     row = row + 1;
 end
