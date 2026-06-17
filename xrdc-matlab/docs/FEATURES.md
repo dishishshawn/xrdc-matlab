@@ -112,6 +112,11 @@ _Last reconciled: 2026-06-09._
 - ⬜ Statistics & ML: bootstrap CIs on fit parameters, outlier rejection on peak picks
 - ⬜ Image Processing: 2D detector images (GIWAXS / RSM area images)
 - ⬜ MATLAB Compiler standalone distribution (see Packaging above)
+- ⬜ User-settable X-ray wavelength — the Rigaku `.txt`/`.hgx` readers hardcode
+      `lambda = 1.5406` (Cu Kα₁) because the export drops the wavelength. Add a
+      settings-menu override in `xrdcApp` so users at other labs (different target
+      / Kα-average / non-Cu setups) can set λ instead of relying on the default.
+      Drop this if the wavelength turns out to be reliably recoverable from the files.
 
 ---
 _Add new "wanted" items below as they come up so this stays the single source of truth._
