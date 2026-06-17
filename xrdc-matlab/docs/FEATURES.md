@@ -80,6 +80,13 @@ _Last reconciled: 2026-06-09._
 - ✅ "Customize Plot…" — publication overrides on top of defaults
       (`xrdc.plot.applyStyle`): title/labels, axis limits, log/linear, font
       size, line colour/width, markers, grid, and sized export (in)
+- ✅ "Settings…" — lab presets persisted as JSON in `prefdir`
+      (`+xrdc/+config`: `defaults`/`load`/`save`/`configPath`). Overrides four
+      baked-in Paik-lab defaults without code edits: X-ray wavelength (stamped
+      onto formats that drop it — Rigaku `.txt`/`.hgx`, plain text; `.xrdml`/
+      `.x00` keep their real λ), default substrate (material ID), rocking-curve
+      default fit shape, and the filename→scan-type rules (toggle + fallback
+      scan type). Unknown/corrupt settings degrade to defaults.
 
 ## Toolbox fallbacks (run without licenses)
 - ✅ Signal Processing fallback (`findpeaks_fallback`, `sgolay_fallback`)
@@ -112,19 +119,21 @@ _Last reconciled: 2026-06-09._
 - ⬜ Statistics & ML: bootstrap CIs on fit parameters, outlier rejection on peak picks
 - ⬜ Image Processing: 2D detector images (GIWAXS / RSM area images)
 - ⬜ MATLAB Compiler standalone distribution (see Packaging above)
-- ⬜ Lab presets / settings menu — several defaults are baked in for the Paik lab's
-      Rigaku and would be wrong at another lab. Add a settings menu in `xrdcApp` (persisted,
-      e.g. JSON in prefdir) that overrides these without code edits:
-    - **X-ray wavelength** — readers hardcode `lambda = 1.5406` (Cu Kα₁) because the
-      `.txt`/`.hgx` export drops it; wrong for non-Cu targets / Kα-average setups.
-      (Drop this one if λ turns out to be reliably recoverable from the files.)
-    - **Default substrate** — `analyzeStrainRSM` defaults `Substrate = "SrTiO3"`; labs
-      growing on other substrates want a different default.
-    - **Filename → scan-type rules** — the `TR_` prefix + `RC`/`XRR`/`2theta` cues in
-      `readScan`/`readRigakuTxt` encode this lab's naming convention; other labs name
-      files differently, so scan-type auto-detection misfires.
-    - **Rocking-curve default fit shape** — currently Lorentzian; Tushar reports Gaussian
-      (see the open decision under Peak detection). Make the lab default selectable.
+- ✅ Lab presets / settings menu — DONE. Several defaults were baked in for the Paik
+      lab's Rigaku and would be wrong at another lab. The `xrdcApp` "Settings…" menu now
+      overrides these without code edits, persisted as JSON in `prefdir` (`+xrdc/+config`):
+    - **X-ray wavelength** — readers still hardcode `lambda = 1.5406` (Cu Kα₁) where the
+      `.txt`/`.hgx` export drops it, but the app re-stamps the configured λ onto those
+      scans on load (formats that carry a real λ — `.xrdml`/`.x00` — are left untouched).
+    - **Default substrate** — the app's material-ID substrate dropdown defaults to the
+      configured substrate (was hardcoded "SrTiO3"). `analyzeStrainRSM`'s own default is
+      unchanged (no GUI entry point yet).
+    - **Filename → scan-type rules** — the `TR_` prefix + `RC`/`XRR`/`2theta` cues can be
+      switched off (`useFilenameRules`) for labs with a different naming convention, with
+      a configurable fallback scan type when nothing else disambiguates.
+    - **Rocking-curve default fit shape** — the app's RC shape dropdown default is now
+      configurable (gauss / lorentz / pseudoVoigt); resolves the open Gaussian-vs-Lorentzian
+      default by making it a lab setting.
 
 ---
 _Add new "wanted" items below as they come up so this stays the single source of truth._
