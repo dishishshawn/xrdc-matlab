@@ -112,11 +112,19 @@ _Last reconciled: 2026-06-09._
 - ⬜ Statistics & ML: bootstrap CIs on fit parameters, outlier rejection on peak picks
 - ⬜ Image Processing: 2D detector images (GIWAXS / RSM area images)
 - ⬜ MATLAB Compiler standalone distribution (see Packaging above)
-- ⬜ User-settable X-ray wavelength — the Rigaku `.txt`/`.hgx` readers hardcode
-      `lambda = 1.5406` (Cu Kα₁) because the export drops the wavelength. Add a
-      settings-menu override in `xrdcApp` so users at other labs (different target
-      / Kα-average / non-Cu setups) can set λ instead of relying on the default.
-      Drop this if the wavelength turns out to be reliably recoverable from the files.
+- ⬜ Lab presets / settings menu — several defaults are baked in for the Paik lab's
+      Rigaku and would be wrong at another lab. Add a settings menu in `xrdcApp` (persisted,
+      e.g. JSON in prefdir) that overrides these without code edits:
+    - **X-ray wavelength** — readers hardcode `lambda = 1.5406` (Cu Kα₁) because the
+      `.txt`/`.hgx` export drops it; wrong for non-Cu targets / Kα-average setups.
+      (Drop this one if λ turns out to be reliably recoverable from the files.)
+    - **Default substrate** — `analyzeStrainRSM` defaults `Substrate = "SrTiO3"`; labs
+      growing on other substrates want a different default.
+    - **Filename → scan-type rules** — the `TR_` prefix + `RC`/`XRR`/`2theta` cues in
+      `readScan`/`readRigakuTxt` encode this lab's naming convention; other labs name
+      files differently, so scan-type auto-detection misfires.
+    - **Rocking-curve default fit shape** — currently Lorentzian; Tushar reports Gaussian
+      (see the open decision under Peak detection). Make the lab default selectable.
 
 ---
 _Add new "wanted" items below as they come up so this stays the single source of truth._
