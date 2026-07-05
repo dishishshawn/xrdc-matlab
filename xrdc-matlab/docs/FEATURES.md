@@ -93,10 +93,15 @@ _Last reconciled: 2026-06-09._
 
 ## Distribution / packaging
 - ✅ MATLAB-project usage (clone + `addpath`)
-- ✅ Standalone `XRDC.exe` — builds via `build/buildStandalone.m` (Compiler R2026a);
-      single-file exe produced. Defender exclusion on the build folder needed for the
-      embed step, or use `buildStandalone(SingleFile=false)`. Runtime-verify on a
-      clean (no-MATLAB) machine still pending.
+- ✅ Standalone build — `build/buildStandalone.m` (Compiler R2026a). Single-file
+      exe produced; Defender exclusion on the build folder needed for the embed step,
+      or use `buildStandalone(SingleFile=false)`.
+- ✅ Web installer for no-MATLAB users — `buildStandalone(Embed=true)` →
+      `build/standalone/installer/XRDCInstaller.exe` (~3 MB, fetches the matching
+      Runtime at install). This is the v1.1.0 Release deliverable; rebuild from the
+      tagged source so it reports the release version.
+- ⬜ Runtime-verify `XRDCInstaller.exe` on a clean (no-MATLAB) machine, then attach
+      it to the v1.1.0 Release.
 
 ## Validation against external references
 - ✅ θ-2θ — Tushar S25 SRO/STO(100): peak positions match to <0.03°
@@ -112,6 +117,10 @@ _Last reconciled: 2026-06-09._
 - ⬜ Statistics & ML: bootstrap CIs on fit parameters, outlier rejection on peak picks
 - ⬜ Image Processing: 2D detector images (GIWAXS / RSM area images)
 - ⬜ MATLAB Compiler standalone distribution (see Packaging above)
+- ⬜ Confirm the academic `LICENSE` with Dr. Paik (interim academic notice shipped
+      with v1.1.0).
+- ⬜ Review whether the already-public `data/` (Tushar's measurement scans) and
+      `.claude/` directories should remain public on the GitHub repo.
 - ⬜ Lab presets / settings menu — several defaults are baked in for the Paik lab's
       Rigaku and would be wrong at another lab. Add a settings menu in `xrdcApp` (persisted,
       e.g. JSON in prefdir) that overrides these without code edits:
