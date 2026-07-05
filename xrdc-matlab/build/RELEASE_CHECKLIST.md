@@ -20,8 +20,7 @@ Work top to bottom; don't start the compile until every box above it is checked.
 
 ## Phase B — build machine prerequisites (one-time)
 - [ ] **MATLAB Compiler installed** — `ver("compiler")` returns non-empty.
-      (As of this writing it is licensed but **not yet installed** — install via the
-      MATLAB installer / Add-Ons before building.)
+      (Installed on the lab build machine as of R2026a.)
 - [ ] The optional toolboxes installed so the *better* paths get baked in, not the
       pure-MATLAB fallbacks: **Signal Processing, Optimization, Curve Fitting** at
       minimum (Global Optimization + Parallel Computing if you want those features).
@@ -49,3 +48,26 @@ Work top to bottom; don't start the compile until every box above it is checked.
 - [ ] Package `XRDC.exe` + a short run note (Runtime version + download link — see
       README §7) for collaborators.
 - [ ] Tag the release in git so the binary is traceable to a commit.
+
+## Phase F — source / GitHub release (installer + source)
+
+The repo delivers to two audiences: no-MATLAB users get the web installer, MATLAB
+users get the source. Cut both together as one tagged release.
+
+- [ ] Bump the version in **one** place: `+xrdc/version.m`. Confirm it flows to
+      the app title (`xrdcApp.m`) and any README references.
+- [ ] `runtests` green on lab MATLAB (Phase A).
+- [ ] Build the web installer from the frozen source:
+      ```matlab
+      addpath build
+      buildStandalone(Embed=true)   % → build/standalone/installer/XRDCInstaller.exe
+      ```
+- [ ] **Runtime-verify** `XRDCInstaller.exe` on a clean machine WITHOUT MATLAB
+      (Phase D): it installs, fetches the Runtime, launches, and passes the Phase A
+      smoke test. The installer bakes in source at build time — rebuild it whenever
+      the version changes.
+- [ ] Push `main`; create an annotated tag `vX.Y.Z`.
+- [ ] Create the GitHub Release (body = the `CHANGELOG.md` section). GitHub
+      auto-attaches the source zip.
+- [ ] Upload the installer asset:
+      `gh release upload vX.Y.Z build/standalone/installer/XRDCInstaller.exe`.
