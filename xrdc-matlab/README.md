@@ -123,6 +123,8 @@ xrdc-matlab/
 
 If you use this in a paper, please cite Schwaigert et al. *J. Vac. Sci. Technol. A* **41**, 022703 (2023) — the figure style is matched to that publication, and the original Delphi XRDC tool by Dr. Tassilo Heeg (FZJ/ISG1-IT) is the source of the underlying algorithms.
 
+**License:** academic use — see [`LICENSE`](../LICENSE).
+
 ---
 
 ## 7. Standalone executable (run without a MATLAB license)
