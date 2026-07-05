@@ -24,7 +24,7 @@ function xrdcApp()
 
     T = appTheme();
 
-    fig = uifigure('Name', 'XRDC Scan Analyzer', 'Position', [100 100 1240 780], ...
+    fig = uifigure('Name', sprintf('XRDC Scan Analyzer v%s', xrdc.version()), 'Position', [100 100 1240 780], ...
         'Visible', 'off', 'Color', T.bg);
     % Keep a light THEME so the plot axes default to white (publication-ready);
     % the dark crystalline "chrome" below is layered on with explicit colours,
