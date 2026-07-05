@@ -1,4 +1,4 @@
-# XRDC — X-ray Diffraction Analysis (Paik group)
+# XRDC — X-ray Diffraction Analysis
 
 MATLAB toolkit for X-ray diffraction analysis: reads Rigaku SmartLab and
 PANalytical files, runs the common analyses (θ-2θ, rocking curve, φ scan, XRR,
@@ -49,8 +49,7 @@ If you use this in a paper, cite Schwaigert et al. *J. Vac. Sci. Technol. A*
 **41**, 022703 (2023) — the figure style is matched to that publication. The
 underlying algorithms come from Dr. Tassilo Heeg's Delphi XRDC tool (FZJ/ISG1-IT).
 
-Questions / bug reports: Shawn Agarwal (shawnagarwal0@gmail.com), Paik group.
-
+Questions / bug reports: Shawn Agarwal (shawnagarwal0@gmail.com)
 ## License
 
 Academic use — see [`LICENSE`](LICENSE).
